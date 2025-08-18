@@ -45,7 +45,7 @@ export const setupPlayer = async () => {
   }
 };
 
-const TrackPlayerService = async () => {
+const TrackPlayerService = () => {
   TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
   TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
   TrackPlayer.addEventListener(Event.RemoteNext, () => TrackPlayer.skipToNext());
