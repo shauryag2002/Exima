@@ -11,7 +11,7 @@ export const DefaultAudioServiceBehaviour =
 
 export const setupPlayer = async () => {
   try {
-    if(await TrackPlayer.isServiceRunning()) {
+    if (await TrackPlayer.isServiceRunning()) {
       return;
     }
       await TrackPlayer.setupPlayer({autoHandleInterruptions: true});
