@@ -17,7 +17,7 @@ export default function RootLayout() {
   });
   const [TrackPlayerReady, setTrackPlayerReady] = useState(false);
 
-useEffect(() => {
+  useEffect(() => {
     setupPlayer().then(() => {
       // Player is ready to use
       setTrackPlayerReady(true);
