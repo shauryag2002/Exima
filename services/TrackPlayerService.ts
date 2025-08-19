@@ -14,7 +14,7 @@ export const setupPlayer = async () => {
     if (await TrackPlayer.isServiceRunning()) {
       return;
     }
-      await TrackPlayer.setupPlayer({autoHandleInterruptions: true});
+    await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
 
     await TrackPlayer.updateOptions({
       android: {
@@ -45,13 +45,18 @@ export const setupPlayer = async () => {
   }
 };
 
-const TrackPlayerService = () => {
-  TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
-  TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
-  TrackPlayer.addEventListener(Event.RemoteNext, () => TrackPlayer.skipToNext());
-  TrackPlayer.addEventListener(Event.RemotePrevious, () => TrackPlayer.skipToPrevious());
-  TrackPlayer.addEventListener(Event.RemoteSeek, (data) => {
-    TrackPlayer.seekTo(data.position);
-  });
+const TrackPlayerService = async () => {
+  try {
+    TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
+    TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
+    TrackPlayer.addEventListener(Event.RemoteNext, () => TrackPlayer.skipToNext());
+    TrackPlayer.addEventListener(Event.RemotePrevious, () => TrackPlayer.skipToPrevious());
+    TrackPlayer.addEventListener(Event.RemoteSeek, (data) => {
+      TrackPlayer.seekTo(data.position);
+    });
+  }
+  catch (error) {
+    console.error('Error in TrackPlayerService:', error);
+  }
 };
 export default TrackPlayerService;
