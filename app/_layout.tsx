@@ -9,9 +9,12 @@ import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import "./../global.css";
 
+import { MiniPlayer } from "@/components/MiniPlayer";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTrackPlayerSync } from "@/hooks/useTrackPlayerSync";
 import TrackPlayerService, { setupPlayer } from "@/services/TrackPlayerService";
 import { useEffect, useState } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import TrackPlayer from "react-native-track-player";
 
 export default function RootLayout() {
@@ -20,6 +23,9 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
   const [TrackPlayerReady, setTrackPlayerReady] = useState(false);
+
+  // Sync TrackPlayer state with Zustand store
+  useTrackPlayerSync();
 
   useEffect(() => {
     setupPlayer()
@@ -36,17 +42,28 @@ export default function RootLayout() {
     return null;
   }
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-        <Stack.Screen
-          name="search"
-          options={{ title: "Search Songs", headerShown: false }}
-        />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" />
+          <Stack.Screen
+            name="search"
+            options={{ title: "Search Songs", headerShown: false }}
+          />
+          <Stack.Screen
+            name="player"
+            options={{
+              headerShown: false,
+              presentation: "modal",
+              gestureEnabled: false,
+            }}
+          />
+        </Stack>
+        <StatusBar style="auto" />
+        <MiniPlayer />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 

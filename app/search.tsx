@@ -1,10 +1,9 @@
-import {
-  SaavnService,
-  SaavnSong,
-  incrementPlayAndMaybeCache,
-} from "@/services/SongApiService";
+import { SaavnSong } from "@/services/SongApiService";
+import { usePlayerStore } from "@/store/playerStore";
+import { useSearchStore } from "@/store/searchStore";
 import { Image } from "expo-image";
-import React, { useState } from "react";
+import { useLocalSearchParams } from "expo-router/build/hooks";
+import React, { useEffect } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -13,45 +12,40 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import TrackPlayer from "react-native-track-player";
 
 export default function SearchScreen() {
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<SaavnSong[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    query,
+    results,
+    isLoading,
+    error,
+    setQuery,
+    searchSongs,
+    clearResults,
+  } = useSearchStore();
+  const params: { query?: string } = useLocalSearchParams();
 
-  async function onSearch() {
-    if (!query.trim()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await SaavnService.searchSongs(query.trim());
-      setResults(data);
-    } catch (e: any) {
-      setError(e.message || "Search failed");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { playNow } = usePlayerStore();
 
-  async function playSong(item: SaavnSong) {
-    try {
-      await TrackPlayer.reset();
-      await incrementPlayAndMaybeCache(item);
-      await TrackPlayer.add({
-        id: item.id,
-        url: item.downloadUrl || "",
-        title: item.name,
-        artist: item.primaryArtists,
-        album: item.album,
-        artwork: item.image,
-      });
-      await TrackPlayer.play();
-    } catch (e) {
-      console.warn("Playback error", e);
+  useEffect(() => {
+    if (params.query) {
+      setQuery(params.query as string);
+      searchSongs(params.query as string);
     }
-  }
+  }, [params.query, setQuery, searchSongs]);
+
+  // Clear results when component unmounts
+  useEffect(() => {
+    return () => clearResults();
+  }, [clearResults]);
+
+  const handleSearch = () => {
+    searchSongs(query);
+  };
+
+  const handlePlaySong = async (song: SaavnSong) => {
+    await playNow(song);
+  };
 
   return (
     <View className="flex-1 bg-neutral-900 px-4 pt-12">
@@ -62,18 +56,18 @@ export default function SearchScreen() {
           className="flex-1 bg-neutral-800 text-neutral-100 px-4 py-3 rounded-xl border border-neutral-700"
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={onSearch}
+          onSubmitEditing={handleSearch}
           returnKeyType="search"
           autoFocus
         />
         <TouchableOpacity
-          onPress={onSearch}
+          onPress={handleSearch}
           className="bg-neutral-700 px-4 py-3 rounded-xl active:opacity-80"
         >
           <Text className="text-neutral-100">Go</Text>
         </TouchableOpacity>
       </View>
-      {loading && <ActivityIndicator color="#d4d4d8" className="mt-4" />}
+      {isLoading && <ActivityIndicator color="#d4d4d8" className="mt-4" />}
       {error && <Text className="text-red-400 mb-2">{error}</Text>}
       <FlatList
         data={results}
@@ -82,7 +76,7 @@ export default function SearchScreen() {
         ItemSeparatorComponent={() => <View className="h-px bg-neutral-800" />}
         renderItem={({ item }) => (
           <TouchableOpacity
-            onPress={() => playSong(item)}
+            onPress={() => handlePlaySong(item)}
             className="flex-row gap-4 py-3"
           >
             {item.image ? (
@@ -109,7 +103,7 @@ export default function SearchScreen() {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          !loading ? (
+          !isLoading ? (
             <Text className="text-neutral-500 mt-12 text-center">
               Search for a track
             </Text>
