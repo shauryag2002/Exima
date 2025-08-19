@@ -1,0 +1,293 @@
+import axios from "axios";
+import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
+
+// Simple persistent play count + downloaded flags store via a JSON file.
+const STORE_FILE = FileSystem.documentDirectory + "play_store.json";
+const PLAY_THRESHOLD = 5;
+const API_BASE = process.env.EXPO_PUBLIC_BASE_API;
+
+export interface SaavnSong {
+  id: string;
+  name: string;
+  album?: string;
+  year?: string;
+  primaryArtists?: string;
+  image?: string; // largest image url
+  downloadUrl?: string; // highest quality url
+  duration?: number; // seconds
+}
+
+interface PersistShape {
+  playCounts: Record<string, number>;
+  downloaded: Record<string, boolean>;
+}
+
+let memory: PersistShape = { playCounts: {}, downloaded: {} };
+let loaded = false;
+
+const apiClient = axios.create({
+  baseURL: API_BASE,
+  timeout: 10000,
+  headers: { Accept: "application/json" },
+});
+
+apiClient.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    const status = err?.response?.status;
+    const msg = status
+      ? `Saavn API error ${status}`
+      : err.message || "Network error";
+    return Promise.reject(new Error(msg));
+  }
+);
+
+async function loadStore() {
+  if (loaded) return;
+  try {
+    const info = await FileSystem.getInfoAsync(STORE_FILE);
+    if (info.exists) {
+      const raw = await FileSystem.readAsStringAsync(STORE_FILE);
+      memory = JSON.parse(raw);
+    }
+  } catch {
+    // ignore
+  } finally {
+    loaded = true;
+  }
+}
+
+async function saveStore() {
+  try {
+    await FileSystem.writeAsStringAsync(STORE_FILE, JSON.stringify(memory));
+  } catch (e) {
+    console.warn("Persist store write failed", e);
+  }
+}
+
+async function api<T>(path: string): Promise<T> {
+  const res = await apiClient.get<T>(path);
+  return res.data as any;
+}
+
+// --- Mapping helpers -------------------------------------------------------
+function mapSong(raw: any): SaavnSong {
+  if (!raw) return {} as any;
+
+  // Image extraction (objects may have url or link)
+  const imgField = raw.image || raw.images;
+  let image: string | undefined;
+  if (Array.isArray(imgField)) {
+    const last = imgField[imgField.length - 1];
+    image = last?.link || last?.url || imgField[0]?.link || imgField[0]?.url;
+  } else if (typeof imgField === "string") {
+    image = imgField;
+  }
+
+  // Download URL extraction (array of { quality, url|link })
+  const dlField = raw.downloadUrl || raw.download_url || raw.downloadUrls;
+  let downloadUrl: string | undefined;
+  if (Array.isArray(dlField)) {
+    const sorted = [...dlField].sort(
+      (a, b) => parseInt(b.quality) - parseInt(a.quality)
+    );
+    downloadUrl = sorted[0]?.link || sorted[0]?.url;
+  } else if (typeof dlField === "string") {
+    downloadUrl = dlField;
+  }
+
+  // Primary artists normalization
+  const primaryArtists =
+    raw.primaryArtists ||
+    raw.primary_artists ||
+    (raw.artists?.primary
+      ? raw.artists.primary.map((a: any) => a.name).join(", ")
+      : undefined);
+
+  // Album name may be an object
+  const albumName =
+    (raw.album && typeof raw.album === "object" ? raw.album.name : raw.album) ||
+    raw.album_name;
+
+  return {
+    id: raw.id,
+    name: raw.name || raw.title,
+    album: albumName,
+    year: raw.year,
+    primaryArtists,
+    image,
+    downloadUrl,
+    duration: raw.duration != null ? Number(raw.duration) : undefined,
+  };
+}
+
+// Also update the permission check to be more specific
+async function ensurePermissions() {
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== "granted") {
+      console.warn(
+        "MediaLibrary permission not granted, files will be saved in app directory"
+      );
+    }
+    return status === "granted";
+  } catch (e) {
+    console.warn("Permission check failed:", e);
+    return false;
+  }
+}
+
+async function isAlreadyDownloaded(songId: string): Promise<boolean> {
+  if (memory.downloaded[songId]) return true;
+  try {
+    const assets = await MediaLibrary.getAssetsAsync({
+      mediaType: "audio",
+      first: 200,
+      sortBy: MediaLibrary.SortBy.creationTime,
+    });
+    return assets.assets.some((a) => a.filename?.includes(songId));
+  } catch {
+    return false;
+  }
+}
+
+// Helper to sanitize filename
+function sanitizeFilename(filename: string, maxLength: number = 50): string {
+  return filename
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "") // Remove invalid characters
+    .replace(/[\s]{2,}/g, " ") // Replace multiple spaces with single space
+    .trim()
+    .slice(0, maxLength)
+    .replace(/\.$/, ""); // Remove trailing dot
+}
+
+// ...existing code until ensureDownloaded function...
+
+// Replace the ensureDownloaded function with this:
+
+async function ensureDownloaded(song: SaavnSong) {
+  if (!song.downloadUrl) return;
+  if (await isAlreadyDownloaded(song.id)) {
+    memory.downloaded[song.id] = true;
+    return;
+  }
+
+  const hasPermission = await ensurePermissions();
+  if (!hasPermission) {
+    throw new Error("Storage permission required for downloading");
+  }
+
+  // Create a simple, safe filename
+  const cleanTitle = sanitizeFilename(song.name || "Unknown", 30);
+  const cleanArtist = sanitizeFilename(song.primaryArtists || "Unknown", 20);
+  const filename = `${cleanArtist} - ${cleanTitle}.mp3`;
+
+  try {
+    // Download to temp location first
+    const tempPath = FileSystem.cacheDirectory + `temp_${song.id}.mp3`;
+
+    const downloadResult = await FileSystem.downloadAsync(
+      song.downloadUrl,
+      tempPath
+    );
+
+    if (downloadResult.status !== 200) {
+      throw new Error(`Download failed with status: ${downloadResult.status}`);
+    }
+
+    // Verify file
+    const tempFileInfo = await FileSystem.getInfoAsync(tempPath);
+    if (
+      !tempFileInfo.exists ||
+      (tempFileInfo.size && tempFileInfo.size < 1000)
+    ) {
+      throw new Error("Downloaded file is invalid or too small");
+    }
+
+    // Create MediaLibrary asset directly from temp file
+    const asset = await MediaLibrary.createAssetAsync(tempPath);
+
+    if (!asset) {
+      throw new Error("Failed to create MediaLibrary asset");
+    }
+
+    // Try to organize in album
+    try {
+      let album = await MediaLibrary.getAlbumAsync("Exima Music");
+      if (!album) {
+        album = await MediaLibrary.createAlbumAsync(
+          "Exima Music",
+          asset,
+          false
+        );
+      } else {
+        await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+      }
+    } catch (albumError) {
+      console.warn("Album organization failed:", albumError);
+    }
+
+    // Clean up temp file
+    await FileSystem.deleteAsync(tempPath, { idempotent: true });
+
+    memory.downloaded[song.id] = true;
+  } catch (e) {
+    console.error("Download failed for", song.name, ":", e);
+    // Clean up temp file
+    try {
+      await FileSystem.deleteAsync(
+        FileSystem.cacheDirectory + `temp_${song.id}.mp3`,
+        { idempotent: true }
+      );
+    } catch {}
+    throw e;
+  }
+}
+// ...rest of the code remains the same...
+
+// --- Public API ------------------------------------------------------------
+export async function searchSongs(query: string): Promise<SaavnSong[]> {
+  if (!query.trim()) return [];
+  const data = await api<any>(
+    `/search/songs?query=${encodeURIComponent(query)}`
+  );
+  const list = data.data.results || data.results || [];
+  return list?.map(mapSong);
+}
+
+export async function getSong(id: string): Promise<SaavnSong | null> {
+  const data = await api<any>(`/songs?id=${encodeURIComponent(id)}`);
+  const entry = Array.isArray(data.data) ? data.data[0] : data.data;
+  return entry ? mapSong(entry) : null;
+}
+
+export async function incrementPlayAndMaybeCache(song: SaavnSong) {
+  await loadStore();
+  if (!song.id) return;
+  const current = (memory.playCounts[song.id] || 0) + 1;
+  memory.playCounts[song.id] = current;
+  if (current >= PLAY_THRESHOLD && !memory.downloaded[song.id]) {
+    ensureDownloaded(song)
+      .catch((e) => console.warn("Download failed", e))
+      .finally(saveStore);
+  } else {
+    saveStore();
+  }
+}
+
+export function getPlayCount(id: string): number {
+  return memory.playCounts[id] || 0;
+}
+
+export function isDownloaded(id: string): boolean {
+  return !!memory.downloaded[id];
+}
+
+export const SaavnService = {
+  searchSongs,
+  getSong,
+  incrementPlayAndMaybeCache,
+  getPlayCount,
+  isDownloaded,
+};
