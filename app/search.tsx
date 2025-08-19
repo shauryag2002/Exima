@@ -28,7 +28,6 @@ export default function SearchScreen() {
   const { playNow } = usePlayerStore();
 
   useEffect(() => {
-    console.log("Search params:", params);
     if (params.query) {
       setQuery(params.query as string);
       searchSongs(params.query as string);
