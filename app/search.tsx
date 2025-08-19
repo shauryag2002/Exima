@@ -23,7 +23,7 @@ export default function SearchScreen() {
     searchSongs,
     clearResults,
   } = useSearchStore();
-  const params: any = useLocalSearchParams();
+  const params: { query?: string } = useLocalSearchParams();
 
   const { playNow } = usePlayerStore();
 
