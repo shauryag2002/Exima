@@ -1,80 +1,150 @@
-import { Image } from "expo-image";
-import { Platform, StyleSheet } from "react-native";
+import { HorizontalAlbumList } from "@/components/home/HorizontalAlbumList";
+import { HorizontalSongList } from "@/components/home/HorizontalSongList";
+import { SaavnAlbum } from "@/services/SongApiService";
+import { useHomeStore } from "@/store/homeStore";
+import React, { useEffect } from "react";
+import { RefreshControl, ScrollView, Text, View } from "react-native";
 
-import { HelloWave } from "@/components/HelloWave";
-import ParallaxScrollView from "@/components/ParallaxScrollView";
-import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 17) return "Good Afternoon";
+  if (hour < 21) return "Good Evening";
+  return "Good Night";
+};
 
 export default function HomeScreen() {
+  const {
+    recentlyPlayedSongs,
+    recentlyPlayedAlbums,
+    recommendations,
+    topCharts,
+    trending,
+    latestReleases,
+    isLoadingRecentlyPlayed,
+    isLoadingRecommendations,
+    isLoadingTopCharts,
+    isLoadingTrending,
+    isLoadingLatestReleases,
+    loadAllData,
+    refreshAll,
+    loadRecommendations,
+    loadTopCharts,
+    loadTrending,
+    loadLatestReleases,
+  } = useHomeStore();
+
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  useEffect(() => {
+    loadAllData();
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshAll();
+    setRefreshing(false);
+  };
+
+  const handleAlbumPress = (album: SaavnAlbum) => {
+    // TODO: Navigate to album details
+    console.log("Album pressed:", album.name);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
-      headerImage={
-        <Image
-          source={require("@/assets/images/partial-react-logo.png")}
-          style={styles.reactLogo}
+    <View className="flex-1 bg-black">
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#ffffff"
+            colors={["#ffffff"]}
+          />
+        }
+      >
+        {/* Header */}
+        <View className="px-6 pt-16 pb-8">
+          <Text className="text-3xl font-bold text-white">{getGreeting()}</Text>
+          <Text className="text-neutral-400 text-base mt-1">
+            Discover your music
+          </Text>
+        </View>
+
+        {/* Recently Played Songs */}
+        {(recentlyPlayedSongs.length > 0 || isLoadingRecentlyPlayed) && (
+          <HorizontalSongList
+            title="Recently Played Songs"
+            songs={recentlyPlayedSongs}
+            isLoading={isLoadingRecentlyPlayed}
+          />
+        )}
+
+        {/* Recently Played Albums */}
+        {(recentlyPlayedAlbums.length > 0 || isLoadingRecentlyPlayed) && (
+          <HorizontalAlbumList
+            title="Recently Played Albums"
+            albums={recentlyPlayedAlbums}
+            onAlbumPress={handleAlbumPress}
+            isLoading={isLoadingRecentlyPlayed}
+          />
+        )}
+
+        {/* Good Songs Recommendations */}
+        <HorizontalSongList
+          title="Recommended for You"
+          songs={recommendations}
+          isLoading={isLoadingRecommendations}
+          onRefresh={loadRecommendations}
         />
-      }
-    >
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit{" "}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText>{" "}
-          to see changes. Press{" "}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: "cmd + d",
-              android: "cmd + m",
-              web: "F12",
-            })}
-          </ThemedText>{" "}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">
-            npm run reset-project
-          </ThemedText>{" "}
-          to get a fresh <ThemedText type="defaultSemiBold">app</ThemedText>{" "}
-          directory. This will move the current{" "}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{" "}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+
+        {/* Top Charts Songs */}
+        <HorizontalSongList
+          title="Top Chart Songs"
+          songs={topCharts.songs}
+          isLoading={isLoadingTopCharts}
+          onRefresh={loadTopCharts}
+        />
+
+        {/* Top Charts Albums */}
+        <HorizontalAlbumList
+          title="Top Chart Albums"
+          albums={topCharts.albums}
+          isLoading={isLoadingTopCharts}
+          onRefresh={loadTopCharts}
+          onAlbumPress={handleAlbumPress}
+        />
+
+        {/* Trending Songs */}
+        <HorizontalSongList
+          title="Trending Songs"
+          songs={trending.songs}
+          isLoading={isLoadingTrending}
+          onRefresh={loadTrending}
+        />
+
+        {/* Latest Release Songs */}
+        <HorizontalSongList
+          title="Latest Release Songs"
+          songs={latestReleases.songs}
+          isLoading={isLoadingLatestReleases}
+          onRefresh={loadLatestReleases}
+        />
+
+        {/* Latest Release Albums */}
+        <HorizontalAlbumList
+          title="Latest Release Albums"
+          albums={latestReleases.albums}
+          isLoading={isLoadingLatestReleases}
+          onRefresh={loadLatestReleases}
+          onAlbumPress={handleAlbumPress}
+        />
+
+        {/* Bottom Spacing */}
+        <View className="h-32" />
+      </ScrollView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: "absolute",
-  },
-});
