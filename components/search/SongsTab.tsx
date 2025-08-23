@@ -79,6 +79,7 @@ export default function SongsTab() {
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => handlePlaySong(item)}
+            onLongPress={() => handleSongOptions(item)}
             className="flex-row gap-4 py-3 px-4 active:bg-neutral-800"
           >
             {item.image ? (

@@ -42,7 +42,11 @@ export default function TabLayout() {
         options={{
           title: "Search",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="location.fill" color={color} />
+            <IconSymbol
+              size={28}
+              name="magnifyingglass.circle.fill"
+              color={color}
+            />
           ),
         }}
         listeners={({ navigation, route }) => ({
@@ -57,9 +61,9 @@ export default function TabLayout() {
         })}
       />
       <Tabs.Screen
-        name="explore"
+        name="account"
         options={{
-          title: "Explore",
+          title: "Account",
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="paperplane.fill" color={color} />
           ),
