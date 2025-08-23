@@ -18,6 +18,43 @@ export interface SaavnSong {
   duration?: number; // seconds
 }
 
+export interface SaavnAlbum {
+  id: string;
+  name: string;
+  image?: string;
+  primaryArtists?: string;
+  year?: string;
+  songCount?: number;
+  language?: string;
+  type: "album";
+}
+
+export interface SaavnPlaylist {
+  id: string;
+  name: string;
+  image?: string;
+  followerCount?: number;
+  songCount?: number;
+  type: "playlist";
+}
+
+export interface SaavnArtist {
+  id: string;
+  name: string;
+  image?: string;
+  followerCount?: number;
+  type: "artist";
+}
+
+export interface SearchResponse<T> {
+  data: {
+    results: T[];
+    total: number;
+    start: number;
+    more: boolean;
+  };
+}
+
 interface PersistShape {
   playCounts: Record<string, number>;
   downloaded: Record<string, boolean>;
@@ -119,6 +156,90 @@ function mapSong(raw: any): SaavnSong {
     image,
     downloadUrl,
     duration: raw.duration != null ? Number(raw.duration) : undefined,
+  };
+}
+
+function mapAlbum(raw: any): SaavnAlbum {
+  if (!raw) return {} as any;
+
+  // Image extraction
+  const imgField = raw.image || raw.images;
+  let image: string | undefined;
+  if (Array.isArray(imgField)) {
+    const last = imgField[imgField.length - 1];
+    image = last?.link || last?.url || imgField[0]?.link || imgField[0]?.url;
+  } else if (typeof imgField === "string") {
+    image = imgField;
+  }
+
+  // Primary artists normalization
+  const primaryArtists =
+    raw.primaryArtists ||
+    raw.primary_artists ||
+    (raw.artists?.primary
+      ? raw.artists.primary.map((a: any) => a.name).join(", ")
+      : undefined) ||
+    raw.artist ||
+    raw.more_info?.artistMap?.primary_artists
+      ?.map((a: any) => a.name)
+      .join(", ");
+
+  return {
+    id: raw.id,
+    name: raw.name || raw.title,
+    image,
+    primaryArtists,
+    year: raw.year || raw.more_info?.year,
+    songCount: raw.songCount || raw.song_count || raw.more_info?.song_count,
+    language: raw.language || raw.more_info?.language,
+    type: "album",
+  };
+}
+
+function mapPlaylist(raw: any): SaavnPlaylist {
+  if (!raw) return {} as any;
+
+  // Image extraction
+  const imgField = raw.image || raw.images;
+  let image: string | undefined;
+  if (Array.isArray(imgField)) {
+    const last = imgField[imgField.length - 1];
+    image = last?.link || last?.url || imgField[0]?.link || imgField[0]?.url;
+  } else if (typeof imgField === "string") {
+    image = imgField;
+  }
+
+  return {
+    id: raw.id,
+    name: raw.name || raw.title,
+    image,
+    followerCount:
+      raw.followerCount || raw.follower_count || raw.more_info?.follower_count,
+    songCount: raw.songCount || raw.song_count || raw.more_info?.song_count,
+    type: "playlist",
+  };
+}
+
+function mapArtist(raw: any): SaavnArtist {
+  if (!raw) return {} as any;
+
+  // Image extraction
+  const imgField = raw.image || raw.images;
+  let image: string | undefined;
+  if (Array.isArray(imgField)) {
+    const last = imgField[imgField.length - 1];
+    image = last?.link || last?.url || imgField[0]?.link || imgField[0]?.url;
+  } else if (typeof imgField === "string") {
+    image = imgField;
+  }
+
+  return {
+    id: raw.id,
+    name: raw.name || raw.title,
+    image,
+    followerCount:
+      raw.followerCount || raw.follower_count || raw.more_info?.follower_count,
+    type: "artist",
   };
 }
 
@@ -247,19 +368,171 @@ async function ensureDownloaded(song: SaavnSong) {
 // ...rest of the code remains the same...
 
 // --- Public API ------------------------------------------------------------
-export async function searchSongs(query: string): Promise<SaavnSong[]> {
-  if (!query.trim()) return [];
+export async function searchSongs(
+  query: string,
+  page: number = 0,
+  limit: number = 20
+): Promise<{ songs: SaavnSong[]; hasMore: boolean }> {
+  if (!query.trim()) return { songs: [], hasMore: false };
+
   const data = await api<any>(
-    `/search/songs?query=${encodeURIComponent(query)}`
+    `/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
   );
-  const list = data.data.results || data.results || [];
-  return list?.map(mapSong);
+
+  const results = data.data?.results || data.results || [];
+  const songs = results.map(mapSong);
+
+  // Calculate hasMore based on whether we got a full page of results
+  // If we get fewer results than the limit, there are no more results
+  const hasMore = results.length >= limit;
+
+  return { songs, hasMore };
+}
+
+export async function searchAlbums(
+  query: string,
+  page: number = 0,
+  limit: number = 20
+): Promise<{ albums: SaavnAlbum[]; hasMore: boolean }> {
+  if (!query.trim()) return { albums: [], hasMore: false };
+
+  const data = await api<any>(
+    `/search/albums?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+  );
+
+  const results = data.data?.results || data.results || [];
+  const albums = results.map(mapAlbum);
+
+  // Calculate hasMore based on whether we got a full page of results
+  const hasMore = results.length >= limit;
+
+  return { albums, hasMore };
+}
+
+export async function searchPlaylists(
+  query: string,
+  page: number = 0,
+  limit: number = 20
+): Promise<{ playlists: SaavnPlaylist[]; hasMore: boolean }> {
+  if (!query.trim()) return { playlists: [], hasMore: false };
+
+  const data = await api<any>(
+    `/search/playlists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+  );
+
+  const results = data.data?.results || data.results || [];
+  const playlists = results.map(mapPlaylist);
+
+  // Calculate hasMore based on whether we got a full page of results
+  const hasMore = results.length >= limit;
+
+  return { playlists, hasMore };
+}
+
+export async function searchArtists(
+  query: string,
+  page: number = 0,
+  limit: number = 20
+): Promise<{ artists: SaavnArtist[]; hasMore: boolean }> {
+  if (!query.trim()) return { artists: [], hasMore: false };
+
+  const data = await api<any>(
+    `/search/artists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+  );
+
+  const results = data.data?.results || data.results || [];
+  const artists = results.map(mapArtist);
+
+  // Calculate hasMore based on whether we got a full page of results
+  const hasMore = results.length >= limit;
+
+  return { artists, hasMore };
+}
+
+export async function searchAll(
+  query: string,
+  page: number = 0,
+  limit: number = 20
+): Promise<{
+  songs: SaavnSong[];
+  albums: SaavnAlbum[];
+  playlists: SaavnPlaylist[];
+  artists: SaavnArtist[];
+  hasMore: {
+    songs: boolean;
+    albums: boolean;
+    playlists: boolean;
+    artists: boolean;
+  };
+}> {
+  if (!query.trim()) {
+    return {
+      songs: [],
+      albums: [],
+      playlists: [],
+      artists: [],
+      hasMore: {
+        songs: false,
+        albums: false,
+        playlists: false,
+        artists: false,
+      },
+    };
+  }
+
+  const [songsResult, albumsResult, playlistsResult, artistsResult] =
+    await Promise.allSettled([
+      searchSongs(query, page, limit),
+      searchAlbums(query, page, limit),
+      searchPlaylists(query, page, limit),
+      searchArtists(query, page, limit),
+    ]);
+
+  return {
+    songs: songsResult.status === "fulfilled" ? songsResult.value.songs : [],
+    albums:
+      albumsResult.status === "fulfilled" ? albumsResult.value.albums : [],
+    playlists:
+      playlistsResult.status === "fulfilled"
+        ? playlistsResult.value.playlists
+        : [],
+    artists:
+      artistsResult.status === "fulfilled" ? artistsResult.value.artists : [],
+    hasMore: {
+      songs:
+        songsResult.status === "fulfilled" ? songsResult.value.hasMore : false,
+      albums:
+        albumsResult.status === "fulfilled"
+          ? albumsResult.value.hasMore
+          : false,
+      playlists:
+        playlistsResult.status === "fulfilled"
+          ? playlistsResult.value.hasMore
+          : false,
+      artists:
+        artistsResult.status === "fulfilled"
+          ? artistsResult.value.hasMore
+          : false,
+    },
+  };
 }
 
 export async function getSong(id: string): Promise<SaavnSong | null> {
   const data = await api<any>(`/songs?id=${encodeURIComponent(id)}`);
   const entry = Array.isArray(data.data) ? data.data[0] : data.data;
   return entry ? mapSong(entry) : null;
+}
+
+export async function getAlbum(id: string): Promise<SaavnAlbum | null> {
+  const data = await api<any>(`/albums?id=${encodeURIComponent(id)}`);
+  const entry = Array.isArray(data.data) ? data.data[0] : data.data;
+  return entry ? mapAlbum(entry) : null;
+}
+
+export async function getPlaylist(id: string): Promise<SaavnPlaylist | null> {
+  const data = await api<any>(`/playlists?id=${encodeURIComponent(id)}`);
+  const entry = Array.isArray(data.data) ? data.data[0] : data.data;
+  return entry ? mapPlaylist(entry) : null;
 }
 
 export async function incrementPlayAndMaybeCache(song: SaavnSong) {
@@ -286,7 +559,13 @@ export function isDownloaded(id: string): boolean {
 
 export const SaavnService = {
   searchSongs,
+  searchAlbums,
+  searchPlaylists,
+  searchArtists,
+  searchAll,
   getSong,
+  getAlbum,
+  getPlaylist,
   incrementPlayAndMaybeCache,
   getPlayCount,
   isDownloaded,

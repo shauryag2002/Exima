@@ -1,12 +1,9 @@
-import { SaavnSong } from "@/services/SongApiService";
-import { usePlayerStore } from "@/store/playerStore";
+import TabBarView from "@/components/TabBarView";
 import { useSearchStore } from "@/store/searchStore";
-import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router/build/hooks";
 import React, { useEffect } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Text,
   TextInput,
   TouchableOpacity,
@@ -14,25 +11,16 @@ import {
 } from "react-native";
 
 export default function SearchScreen() {
-  const {
-    query,
-    results,
-    isLoading,
-    error,
-    setQuery,
-    searchSongs,
-    clearResults,
-  } = useSearchStore();
+  const { query, isLoading, error, setQuery, searchAll, clearResults } =
+    useSearchStore();
   const params: { query?: string } = useLocalSearchParams();
-
-  const { playNow } = usePlayerStore();
 
   useEffect(() => {
     if (params.query) {
       setQuery(params.query as string);
-      searchSongs(params.query as string);
+      searchAll(params.query as string);
     }
-  }, [params.query, setQuery, searchSongs]);
+  }, [params.query, setQuery, searchAll]);
 
   // Clear results when component unmounts
   useEffect(() => {
@@ -40,76 +28,82 @@ export default function SearchScreen() {
   }, [clearResults]);
 
   const handleSearch = () => {
-    searchSongs(query);
+    if (query.trim()) {
+      searchAll(query);
+    }
   };
 
-  const handlePlaySong = async (song: SaavnSong) => {
-    await playNow(song);
-  };
+  const isAnyLoading =
+    isLoading.songs ||
+    isLoading.albums ||
+    isLoading.playlists ||
+    isLoading.artists;
 
   return (
-    <View className="flex-1 bg-neutral-900 px-4 pt-12">
-      <View className="flex-row items-center mb-4 gap-2">
-        <TextInput
-          placeholder="Search songs..."
-          placeholderTextColor="#6b7280"
-          className="flex-1 bg-neutral-800 text-neutral-100 px-4 py-3 rounded-xl border border-neutral-700"
-          value={query}
-          onChangeText={setQuery}
-          onSubmitEditing={handleSearch}
-          returnKeyType="search"
-          autoFocus
-        />
-        <TouchableOpacity
-          onPress={handleSearch}
-          className="bg-neutral-700 px-4 py-3 rounded-xl active:opacity-80"
-        >
-          <Text className="text-neutral-100">Go</Text>
-        </TouchableOpacity>
-      </View>
-      {isLoading && <ActivityIndicator color="#d4d4d8" className="mt-4" />}
-      {error && <Text className="text-red-400 mb-2">{error}</Text>}
-      <FlatList
-        data={results}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        ItemSeparatorComponent={() => <View className="h-px bg-neutral-800" />}
-        renderItem={({ item }) => (
+    <View className="flex-1 bg-neutral-900">
+      {/* Search Header */}
+      <View className="px-4 pt-12 pb-4 bg-neutral-900 border-b border-neutral-800">
+        <View className="flex-row items-center gap-3">
+          <TextInput
+            placeholder="Search songs, albums, playlists, artists..."
+            placeholderTextColor="#6b7280"
+            className="flex-1 bg-neutral-800 text-neutral-100 px-4 py-3 rounded-xl border border-neutral-700 text-base"
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+            autoFocus
+          />
           <TouchableOpacity
-            onPress={() => handlePlaySong(item)}
-            className="flex-row gap-4 py-3"
+            onPress={handleSearch}
+            disabled={!query.trim() || isAnyLoading}
+            className={`px-5 py-3 rounded-xl ${
+              query.trim() && !isAnyLoading
+                ? "bg-blue-600 active:bg-blue-700"
+                : "bg-neutral-700"
+            }`}
           >
-            {item.image ? (
-              <Image
-                source={{ uri: item.image }}
-                style={{ width: 56, height: 56, borderRadius: 12 }}
-              />
+            {isAnyLoading ? (
+              <ActivityIndicator color="#d4d4d8" size="small" />
             ) : (
-              <View className="w-14 h-14 rounded-xl bg-neutral-800 justify-center items-center">
-                <Text className="text-neutral-400 text-xs">No Art</Text>
-              </View>
+              <Text
+                className={`font-medium ${
+                  query.trim() && !isAnyLoading
+                    ? "text-white"
+                    : "text-neutral-400"
+                }`}
+              >
+                Go
+              </Text>
             )}
-            <View className="flex-1">
-              <Text className="text-neutral-100" numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text className="text-neutral-400 text-xs mt-1" numberOfLines={1}>
-                {item.primaryArtists}
-              </Text>
-            </View>
-            <View className="justify-center items-end">
-              <Text className="text-neutral-500 text-xs">Play</Text>
-            </View>
           </TouchableOpacity>
+        </View>
+
+        {error && (
+          <View className="mt-3 bg-red-900/20 border border-red-800 rounded-lg p-3">
+            <Text className="text-red-400 text-sm">{error}</Text>
+          </View>
         )}
-        ListEmptyComponent={
-          !isLoading ? (
-            <Text className="text-neutral-500 mt-12 text-center">
-              Search for a track
-            </Text>
-          ) : null
-        }
-      />
+      </View>
+
+      {/* Tab Content */}
+      <View className="flex-1">
+        {query.trim() ? (
+          <TabBarView />
+        ) : (
+          <View className="flex-1 justify-center items-center px-6">
+            <View className="items-center">
+              <Text className="text-6xl mb-4">🎵</Text>
+              <Text className="text-neutral-100 text-xl font-semibold mb-2 text-center">
+                Search for Music
+              </Text>
+              <Text className="text-neutral-400 text-center leading-6">
+                Find your favorite songs, albums, playlists, and artists
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
