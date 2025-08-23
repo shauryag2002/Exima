@@ -25,12 +25,10 @@ export default function SongsTab() {
   const handleSongOptions = (song: SaavnSong) => {
     // This will be implemented when bottom sheet UI is added
     showBottomSheet(song);
-    console.log("Show options for:", song.name);
   };
 
   const handleLoadMore = () => {
     if (hasMore.songs && !isLoadingMore.songs && !isLoading.songs) {
-      console.log("Loading more songs...");
       loadMore("songs");
     }
   };

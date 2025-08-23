@@ -16,12 +16,10 @@ export default function ArtistsTab() {
 
   const handleArtistPress = (artist: SaavnArtist) => {
     // TODO: Navigate to artist details page
-    console.log("Navigate to artist:", artist.name);
   };
 
   const handleLoadMore = () => {
     if (hasMore.artists && !isLoadingMore.artists && !isLoading.artists) {
-      console.log("Loading more artists...");
       loadMore("artists");
     }
   };

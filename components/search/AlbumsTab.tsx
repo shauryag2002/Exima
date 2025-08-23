@@ -16,12 +16,10 @@ export default function AlbumsTab() {
 
   const handleAlbumPress = (album: SaavnAlbum) => {
     // TODO: Navigate to album details page
-    console.log("Navigate to album:", album.name);
   };
 
   const handleLoadMore = () => {
     if (hasMore.albums && !isLoadingMore.albums && !isLoading.albums) {
-      console.log("Loading more albums...");
       loadMore("albums");
     }
   };

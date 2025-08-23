@@ -16,12 +16,10 @@ export default function PlaylistsTab() {
 
   const handlePlaylistPress = (playlist: SaavnPlaylist) => {
     // TODO: Navigate to playlist details page
-    console.log("Navigate to playlist:", playlist.name);
   };
 
   const handleLoadMore = () => {
     if (hasMore.playlists && !isLoadingMore.playlists && !isLoading.playlists) {
-      console.log("Loading more playlists...");
       loadMore("playlists");
     }
   };
