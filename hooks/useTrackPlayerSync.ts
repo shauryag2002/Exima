@@ -1,6 +1,9 @@
 import { usePlayerStore } from "@/store/playerStore";
 import { useEffect } from "react";
-import { Event, useTrackPlayerEvents } from "react-native-track-player";
+import TrackPlayer, {
+  Event,
+  useTrackPlayerEvents,
+} from "react-native-track-player";
 
 const events = [
   Event.PlaybackState,
@@ -36,8 +39,18 @@ export function useTrackPlayerSync() {
     }
   });
 
-  // Initial sync when hook mounts
+  // Initial sync when hook mounts - only if TrackPlayer is running
   useEffect(() => {
-    updateFromTrackPlayer();
+    const initSync = async () => {
+      try {
+        if (await TrackPlayer.isServiceRunning()) {
+          updateFromTrackPlayer();
+        }
+      } catch (error) {
+        // Silent fail - TrackPlayer may not be initialized yet
+      }
+    };
+
+    initSync();
   }, [updateFromTrackPlayer]);
 }

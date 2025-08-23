@@ -2,8 +2,10 @@ import {
   SaavnSong,
   incrementPlayAndMaybeCache,
 } from "@/services/SongApiService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import TrackPlayer, { State, Track } from "react-native-track-player";
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 interface PlayerState {
   // Current track info
@@ -38,173 +40,239 @@ interface PlayerState {
   updateFromTrackPlayer: () => Promise<void>;
 }
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
-  currentTrack: null,
-  isPlaying: false,
-  isLoading: false,
-  position: 0,
-  duration: 0,
-  queue: [],
-  currentIndex: 0,
-
-  play: async () => {
-    set({ isLoading: true });
-    try {
-      await TrackPlayer.play();
-      set({ isPlaying: true });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  pause: async () => {
-    await TrackPlayer.pause();
-    set({ isPlaying: false });
-  },
-
-  skipToNext: async () => {
-    try {
-      await TrackPlayer.skipToNext();
-      await get().updateFromTrackPlayer();
-    } catch (e) {
-      console.warn("Skip to next failed:", e);
-    }
-  },
-
-  skipToPrevious: async () => {
-    try {
-      await TrackPlayer.skipToPrevious();
-      await get().updateFromTrackPlayer();
-    } catch (e) {
-      console.warn("Skip to previous failed:", e);
-    }
-  },
-
-  seekTo: async (position: number) => {
-    await TrackPlayer.seekTo(position);
-    set({ position });
-  },
-
-  addToQueue: async (song: SaavnSong) => {
-    const track: Track = {
-      id: song.id,
-      url: song.downloadUrl || "",
-      title: song.name,
-      artist: song.primaryArtists,
-      album: song.album,
-      artwork: song.image,
-    };
-    await TrackPlayer.add(track);
-    const queue = await TrackPlayer.getQueue();
-    set({ queue });
-  },
-
-  playNow: async (song: SaavnSong) => {
-    set({ isLoading: true });
-    try {
-      await TrackPlayer.reset();
-      await incrementPlayAndMaybeCache(song);
-
-      const track: Track = {
-        id: song.id,
-        url: song.downloadUrl || "",
-        title: song.name,
-        artist: song.primaryArtists,
-        album: song.album,
-        artwork: song.image,
-      };
-
-      await TrackPlayer.add(track);
-      await TrackPlayer.play();
-
-      set({
-        currentTrack: track,
-        isPlaying: true,
-        queue: [track],
-        currentIndex: 0,
-      });
-    } catch (e) {
-      console.warn("Playback error", e);
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  clearQueue: async () => {
-    await TrackPlayer.reset();
-    set({
-      queue: [],
+export const usePlayerStore = create<PlayerState>()(
+  persist(
+    (set, get) => ({
       currentTrack: null,
       isPlaying: false,
-      currentIndex: 0,
+      isLoading: false,
       position: 0,
       duration: 0,
-    });
-  },
+      queue: [],
+      currentIndex: 0,
 
-  shufflePlay: async (songs: SaavnSong[]) => {
-    if (songs.length === 0) return;
+      play: async () => {
+        try {
+          await TrackPlayer.play();
+          set({ isPlaying: true });
+        } catch (e) {
+          console.warn("Failed to play:", e);
+        }
+      },
 
-    set({ isLoading: true });
-    try {
-      await TrackPlayer.reset();
+      pause: async () => {
+        try {
+          await TrackPlayer.pause();
+          set({ isPlaying: false });
+        } catch (e) {
+          console.warn("Failed to pause:", e);
+        }
+      },
 
-      // Shuffle the songs array
-      const shuffledSongs = [...songs].sort(() => Math.random() - 0.5);
+      skipToNext: async () => {
+        try {
+          await TrackPlayer.skipToNext();
+          get().updateFromTrackPlayer();
+        } catch (e) {
+          console.warn("Failed to skip to next:", e);
+        }
+      },
 
-      // Convert to tracks and add to queue
-      const tracks: Track[] = shuffledSongs.map((song) => ({
-        id: song.id,
-        url: song.downloadUrl || "",
-        title: song.name,
-        artist: song.primaryArtists,
-        album: song.album,
-        artwork: song.image,
-      }));
+      skipToPrevious: async () => {
+        try {
+          await TrackPlayer.skipToPrevious();
+          get().updateFromTrackPlayer();
+        } catch (e) {
+          console.warn("Failed to skip to previous:", e);
+        }
+      },
 
-      await TrackPlayer.add(tracks);
-      await TrackPlayer.play();
+      seekTo: async (position: number) => {
+        try {
+          await TrackPlayer.seekTo(position);
+          set({ position });
+        } catch (e) {
+          console.warn("Failed to seek:", e);
+        }
+      },
 
-      // Increment play count for first song
-      await incrementPlayAndMaybeCache(shuffledSongs[0]);
+      addToQueue: async (song: SaavnSong) => {
+        try {
+          if (!song.downloadUrl) return;
 
-      set({
-        currentTrack: tracks[0],
-        isPlaying: true,
-        queue: tracks,
-        currentIndex: 0,
-      });
-    } catch (e) {
-      console.warn("Shuffle play error", e);
-    } finally {
-      set({ isLoading: false });
+          const track: Track = {
+            id: song.id,
+            url: song.downloadUrl,
+            title: song.name,
+            artist: song.primaryArtists,
+            artwork: song.image,
+            album: song.album,
+            duration: song.duration,
+          };
+
+          await TrackPlayer.add(track);
+          const newQueue = await TrackPlayer.getQueue();
+          set({ queue: newQueue });
+        } catch (e) {
+          console.warn("Failed to add to queue:", e);
+        }
+      },
+
+      playNow: async (song: SaavnSong) => {
+        try {
+          if (!song.downloadUrl) return;
+
+          const track: Track = {
+            id: song.id,
+            url: song.downloadUrl,
+            title: song.name,
+            artist: song.primaryArtists,
+            artwork: song.image,
+            album: song.album,
+            duration: song.duration,
+          };
+
+          await TrackPlayer.reset();
+          await TrackPlayer.add(track);
+          await TrackPlayer.play();
+
+          set({
+            currentTrack: track,
+            isPlaying: true,
+            queue: [track],
+            currentIndex: 0,
+          });
+
+          // Track play count
+          await incrementPlayAndMaybeCache(song);
+        } catch (e) {
+          console.warn("Failed to play now:", e);
+        }
+      },
+
+      clearQueue: async () => {
+        try {
+          await TrackPlayer.reset();
+          set({
+            queue: [],
+            currentIndex: 0,
+            currentTrack: null,
+            isPlaying: false,
+          });
+        } catch (e) {
+          console.warn("Failed to clear queue:", e);
+        }
+      },
+
+      shufflePlay: async (songs: SaavnSong[]) => {
+        try {
+          if (songs.length === 0) return;
+
+          // Shuffle the songs array
+          const shuffledSongs = [...songs].sort(() => Math.random() - 0.5);
+
+          const tracks: Track[] = shuffledSongs
+            .filter((song) => song.downloadUrl)
+            .map((song) => ({
+              id: song.id,
+              url: song.downloadUrl!,
+              title: song.name,
+              artist: song.primaryArtists,
+              artwork: song.image,
+              album: song.album,
+              duration: song.duration,
+            }));
+
+          if (tracks.length === 0) return;
+
+          await TrackPlayer.reset();
+          await TrackPlayer.add(tracks);
+          await TrackPlayer.play();
+
+          set({
+            queue: tracks,
+            currentIndex: 0,
+            currentTrack: tracks[0],
+            isPlaying: true,
+          });
+
+          // Track play count for first song
+          await incrementPlayAndMaybeCache(shuffledSongs[0]);
+        } catch (e) {
+          console.warn("Failed to shuffle play:", e);
+        }
+      },
+
+      setCurrentTrack: (track: Track | null) => set({ currentTrack: track }),
+      setIsPlaying: (playing: boolean) => set({ isPlaying: playing }),
+      setPosition: (position: number) => set({ position }),
+      setDuration: (duration: number) => set({ duration }),
+
+      updateFromTrackPlayer: async () => {
+        try {
+          // Check if TrackPlayer is properly initialized
+          if (!(await TrackPlayer.isServiceRunning())) {
+            return;
+          }
+
+          const [track, position, duration, queue, currentIndex, state] =
+            await Promise.all([
+              TrackPlayer.getActiveTrack(),
+              TrackPlayer.getPosition(),
+              TrackPlayer.getDuration(),
+              TrackPlayer.getQueue(),
+              TrackPlayer.getActiveTrackIndex(),
+              TrackPlayer.getPlaybackState(),
+            ]);
+
+          set({
+            currentTrack: track || null,
+            isPlaying: state.state === State.Playing,
+            position,
+            duration,
+            queue,
+            currentIndex: currentIndex || 0,
+          });
+        } catch (e) {
+          console.warn("Failed to update from TrackPlayer:", e);
+        }
+      },
+    }),
+    {
+      name: "player-store",
+      storage: {
+        getItem: async (name: string) => {
+          try {
+            const value = await AsyncStorage.getItem(name);
+            return value ? JSON.parse(value) : null;
+          } catch (error) {
+            console.error("Failed to load persisted player store:", error);
+            return null;
+          }
+        },
+        setItem: async (name: string, value: any) => {
+          try {
+            await AsyncStorage.setItem(name, JSON.stringify(value));
+          } catch (error) {
+            console.error("Failed to persist player store:", error);
+          }
+        },
+        removeItem: async (name: string) => {
+          try {
+            await AsyncStorage.removeItem(name);
+          } catch (error) {
+            console.error("Failed to remove persisted player store:", error);
+          }
+        },
+      },
+      partialize: (state) => ({
+        // Only persist queue and track info, not playback state
+        queue: state.queue,
+        currentIndex: state.currentIndex,
+        currentTrack: state.currentTrack,
+        // Don't persist: isPlaying, isLoading, position, duration
+      }),
+      version: 1,
     }
-  },
-
-  setCurrentTrack: (track) => set({ currentTrack: track }),
-  setIsPlaying: (playing) => set({ isPlaying: playing }),
-  setPosition: (position) => set({ position }),
-  setDuration: (duration) => set({ duration }),
-
-  updateFromTrackPlayer: async () => {
-    try {
-      const track = await TrackPlayer.getActiveTrack();
-      const state = await TrackPlayer.getPlaybackState();
-      const position = await TrackPlayer.getPosition();
-      const duration = await TrackPlayer.getDuration();
-      const queue = await TrackPlayer.getQueue();
-      const currentIndex = await TrackPlayer.getActiveTrackIndex();
-
-      set({
-        currentTrack: track || null,
-        isPlaying: state.state === State.Playing,
-        position,
-        duration,
-        queue,
-        currentIndex: currentIndex || 0,
-      });
-    } catch (e) {
-      console.warn("Failed to update from TrackPlayer:", e);
-    }
-  },
-}));
+  )
+);
