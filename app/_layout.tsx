@@ -9,6 +9,7 @@ import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import "./../global.css";
 
+import GlobalBottomSheet from "@/components/GlobalBottomSheet";
 import { MiniPlayer } from "@/components/MiniPlayer";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useTrackPlayerSync } from "@/hooks/useTrackPlayerSync";
@@ -59,9 +60,18 @@ export default function RootLayout() {
               gestureEnabled: false,
             }}
           />
+          <Stack.Screen
+            name="downloads"
+            options={{ title: "Downloads", headerShown: false }}
+          />
+          <Stack.Screen
+            name="playlists"
+            options={{ title: "Playlists", headerShown: false }}
+          />
         </Stack>
         <StatusBar style="auto" />
         <MiniPlayer />
+        <GlobalBottomSheet />
       </ThemeProvider>
     </GestureHandlerRootView>
   );
