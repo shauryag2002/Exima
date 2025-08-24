@@ -56,13 +56,11 @@ class DownloadService {
       // Check initial permission status without requesting
       const { status } = await MediaLibrary.getPermissionsAsync();
       this.permissionGranted = status === "granted";
-      console.log("Initial permission status:", this.permissionGranted);
 
       // Load downloaded songs
       await this.loadDownloadedSongs();
 
       this.isInitialized = true;
-      console.log("DownloadService initialized successfully");
     } catch (error) {
       console.error("Failed to initialize DownloadService:", error);
       this.isInitialized = true; // Continue with empty downloads map if loading fails
@@ -74,25 +72,20 @@ class DownloadService {
     try {
       // Return cached result if available
       if (this.permissionGranted !== null) {
-        console.log("Using cached permission status:", this.permissionGranted);
         return this.permissionGranted;
       }
 
-      console.log("Checking media library permissions...");
       const { status } = await MediaLibrary.getPermissionsAsync();
 
       if (status === "granted") {
-        console.log("Permissions already granted");
         this.permissionGranted = true;
         return true;
       }
 
-      console.log("Requesting media library permissions...");
       const { status: newStatus } =
         await MediaLibrary.requestPermissionsAsync();
 
       this.permissionGranted = newStatus === "granted";
-      console.log("Permission request result:", this.permissionGranted);
 
       return this.permissionGranted;
     } catch (error) {
@@ -110,10 +103,8 @@ class DownloadService {
   // Allow user to manually grant MediaLibrary permissions
   async requestMediaLibraryPermissions(): Promise<boolean> {
     try {
-      console.log("User requesting MediaLibrary permissions...");
       const { status } = await MediaLibrary.requestPermissionsAsync();
       this.permissionGranted = status === "granted";
-      console.log("MediaLibrary permission granted:", this.permissionGranted);
       return this.permissionGranted;
     } catch (error) {
       console.error("Failed to request MediaLibrary permissions:", error);
@@ -130,20 +121,14 @@ class DownloadService {
   // Load downloaded songs metadata from storage
   private async loadDownloadedSongs(): Promise<void> {
     try {
-      console.log("Loading downloaded songs from storage...");
       const stored = await AsyncStorage.getItem(this.STORAGE_KEY);
-      console.log("Raw stored data:", stored);
 
       if (stored) {
         const parsed: DownloadedSongMetadata[] = JSON.parse(stored);
-        console.log("Parsed downloaded songs:", parsed.length, parsed);
         this.downloadedSongs.clear();
         parsed.forEach((song) => {
           this.downloadedSongs.set(song.id, song);
         });
-        console.log("Loaded", this.downloadedSongs.size, "downloaded songs");
-      } else {
-        console.log("No downloaded songs found in storage");
       }
     } catch (error) {
       console.error("Failed to load downloaded songs:", error);
@@ -309,7 +294,6 @@ class DownloadService {
       // Only try MediaLibrary if we have permissions (don't request them)
       if (this.permissionGranted === true) {
         try {
-          console.log("Permissions available, creating MediaLibrary asset...");
           asset = await MediaLibrary.createAssetAsync(tempPath);
           finalPath = asset.uri;
 
@@ -325,7 +309,6 @@ class DownloadService {
             } else {
               await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
             }
-            console.log("Successfully added to Exima album");
           } catch (albumError) {
             console.warn(
               "Failed to organize in album (continuing anyway):",
@@ -354,7 +337,6 @@ class DownloadService {
           from: tempPath,
           to: finalPath,
         });
-        console.log("Saved to app-internal storage:", finalPath);
       } else {
         // Clean up temp file if using MediaLibrary
         await FileSystem.deleteAsync(tempPath, { idempotent: true });

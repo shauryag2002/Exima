@@ -1,3 +1,4 @@
+import RecommendationService from "@/services/RecommendationService";
 import {
   SaavnSong,
   getBestAvailableUrl,
@@ -20,6 +21,10 @@ interface PlayerState {
   queue: Track[];
   currentIndex: number;
 
+  // Recommendations
+  isLoadingRecommendations: boolean;
+  autoRecommendationsEnabled: boolean;
+
   // Player controls
   play: () => Promise<void>;
   pause: () => Promise<void>;
@@ -33,6 +38,11 @@ interface PlayerState {
   clearQueue: () => Promise<void>;
   shufflePlay: (songs: SaavnSong[]) => Promise<void>;
   playInOrder: (songs: SaavnSong[]) => Promise<void>;
+
+  // Recommendation functions
+  loadRecommendations: (currentSong: SaavnSong) => Promise<void>;
+  checkAndLoadRecommendations: () => Promise<void>;
+  setAutoRecommendations: (enabled: boolean) => void;
 
   // State updaters
   setCurrentTrack: (track: Track | null) => void;
@@ -52,6 +62,8 @@ export const usePlayerStore = create<PlayerState>()(
       duration: 0,
       queue: [],
       currentIndex: 0,
+      isLoadingRecommendations: false,
+      autoRecommendationsEnabled: true,
 
       play: async () => {
         try {
@@ -75,6 +87,8 @@ export const usePlayerStore = create<PlayerState>()(
         try {
           await TrackPlayer.skipToNext();
           get().updateFromTrackPlayer();
+          // Check if we need to load more recommendations
+          get().checkAndLoadRecommendations();
         } catch (e) {
           console.warn("Failed to skip to next:", e);
         }
@@ -253,6 +267,92 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
+      loadRecommendations: async (currentSong: SaavnSong) => {
+        if (get().isLoadingRecommendations) return;
+
+        set({ isLoadingRecommendations: true });
+
+        try {
+          const recommendations =
+            await RecommendationService.getSmartRecommendations(currentSong);
+
+          if (recommendations.length > 0) {
+            // Convert recommendations to tracks
+            const recommendationTracks: Track[] = [];
+            for (const song of recommendations) {
+              const bestUrl = getBestAvailableUrl(song);
+              if (bestUrl) {
+                recommendationTracks.push({
+                  id: song.id,
+                  url: bestUrl,
+                  title: song.name,
+                  artist: song.primaryArtists,
+                  artwork: song.image,
+                  album: song.album,
+                  duration: song.duration,
+                });
+              }
+            }
+
+            // Add recommendations to the queue
+            if (recommendationTracks.length > 0) {
+              await TrackPlayer.add(recommendationTracks);
+              const newQueue = await TrackPlayer.getQueue();
+              set({ queue: newQueue });
+            }
+          }
+        } catch (error) {
+          console.error("Error loading recommendations:", error);
+        } finally {
+          set({ isLoadingRecommendations: false });
+        }
+      },
+
+      checkAndLoadRecommendations: async () => {
+        const state = get();
+
+        if (
+          !state.autoRecommendationsEnabled ||
+          state.isLoadingRecommendations
+        ) {
+          return;
+        }
+
+        const currentQueue = await TrackPlayer.getQueue();
+        const currentIndex = await TrackPlayer.getActiveTrackIndex();
+
+        // Check if we're near the end of the queue (last 2 songs)
+        if (
+          currentQueue.length > 0 &&
+          currentIndex !== null &&
+          currentIndex !== undefined
+        ) {
+          const songsRemaining = currentQueue.length - currentIndex - 1;
+
+          if (songsRemaining <= 2) {
+            const currentTrack = await TrackPlayer.getActiveTrack();
+
+            if (currentTrack) {
+              // Convert Track back to SaavnSong for recommendation service
+              const currentSong: SaavnSong = {
+                id: currentTrack.id || "",
+                name: currentTrack.title || "",
+                primaryArtists: currentTrack.artist,
+                album: currentTrack.album,
+                image: currentTrack.artwork,
+                duration: currentTrack.duration,
+              };
+
+              await state.loadRecommendations(currentSong);
+            }
+          }
+        }
+      },
+
+      setAutoRecommendations: (enabled: boolean) => {
+        set({ autoRecommendationsEnabled: enabled });
+      },
+
       setCurrentTrack: (track: Track | null) => set({ currentTrack: track }),
       setIsPlaying: (playing: boolean) => set({ isPlaying: playing }),
       setPosition: (position: number) => set({ position }),
@@ -320,7 +420,8 @@ export const usePlayerStore = create<PlayerState>()(
         queue: state.queue,
         currentIndex: state.currentIndex,
         currentTrack: state.currentTrack,
-        // Don't persist: isPlaying, isLoading, position, duration
+        autoRecommendationsEnabled: state.autoRecommendationsEnabled,
+        // Don't persist: isPlaying, isLoading, position, duration, isLoadingRecommendations
       }),
       version: 1,
     }

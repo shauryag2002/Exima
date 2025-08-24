@@ -72,15 +72,6 @@ export default function DownloadsScreen() {
 
       // Get Exima downloaded songs only
       const songs = getDownloadedSongs();
-      console.log("Downloaded songs from API:", songs.length, songs);
-
-      // Also check DownloadService directly
-      const directSongs = DownloadService.getDownloadedSongs();
-      console.log(
-        "Downloaded songs from DownloadService:",
-        directSongs.length,
-        directSongs
-      );
 
       setDownloadedSongs(songs);
     } catch (error) {
@@ -249,18 +240,6 @@ export default function DownloadsScreen() {
           Debug: Checking for downloads...{"\n"}
           Total storage: {formatFileSize(DownloadService.getTotalStorageUsed())}
         </Text>
-
-        <TouchableOpacity
-          className="mt-2 bg-neutral-700 px-3 py-2 rounded"
-          onPress={async () => {
-            await DownloadService.debugStorage();
-            await loadDownloadedSongs();
-          }}
-        >
-          <Text className="text-neutral-300 text-xs text-center">
-            Debug Storage
-          </Text>
-        </TouchableOpacity>
       </View>
 
       <View className="flex-row gap-3 mt-6">
