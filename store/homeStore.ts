@@ -1,12 +1,16 @@
 import {
   SaavnAlbum,
   SaavnSong,
+  getDownloadedAlbumsFromRecent,
   getLatestReleases,
   getRecentlyPlayedAlbums,
+  getRecentlyPlayedOffline,
   getRecentlyPlayedSongs,
   getRecommendations,
-  getTopCharts,
-  getTrending,
+  // Offline-compatible functions
+  getTopChartsOffline,
+  getTrendingOffline,
+  isOffline,
   loadStore,
 } from "@/services/SongApiService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -95,8 +99,15 @@ export const useHomeStore = create<HomeState>()(
           try {
             // Ensure the store is loaded before accessing recently played data
             await loadStore();
-            const songs = getRecentlyPlayedSongs();
-            const albums = getRecentlyPlayedAlbums();
+
+            // Use offline-compatible functions
+            const songs = isOffline()
+              ? getRecentlyPlayedOffline()
+              : getRecentlyPlayedSongs();
+            const albums = isOffline()
+              ? getDownloadedAlbumsFromRecent()
+              : getRecentlyPlayedAlbums();
+
             set({
               recentlyPlayedSongs: songs,
               recentlyPlayedAlbums: albums,
@@ -148,7 +159,8 @@ export const useHomeStore = create<HomeState>()(
 
           set({ isLoadingTopCharts: true });
           try {
-            const topCharts = await getTopCharts();
+            // Use offline-compatible function
+            const topCharts = await getTopChartsOffline();
             set({
               topCharts,
               isLoadingTopCharts: false,
@@ -173,7 +185,8 @@ export const useHomeStore = create<HomeState>()(
 
           set({ isLoadingTrending: true });
           try {
-            const trending = await getTrending();
+            // Use offline-compatible function
+            const trending = await getTrendingOffline();
             set({
               trending,
               isLoadingTrending: false,

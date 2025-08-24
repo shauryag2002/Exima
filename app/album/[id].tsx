@@ -1,7 +1,9 @@
+import { OfflineIndicator } from "@/components/NetworkStatus";
 import {
   SaavnAlbum,
   SaavnSong,
-  getAlbumDetails,
+  getAlbumDetailsOffline,
+  isOffline,
 } from "@/services/SongApiService";
 import { usePlayerStore } from "@/store/playerStore";
 import { Image } from "expo-image";
@@ -49,7 +51,8 @@ export default function AlbumDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const result = await getAlbumDetails(albumId);
+      // Use offline-compatible function
+      const result = await getAlbumDetailsOffline(albumId);
 
       if (result) {
         const albumDetails: AlbumDetails = {
@@ -58,10 +61,17 @@ export default function AlbumDetailScreen() {
         };
         setAlbum(albumDetails);
       } else {
-        setError("Album not found");
+        // Show different error message based on network status
+        const errorMessage = isOffline()
+          ? "No downloaded songs found for this album. Download some songs when online to access them offline."
+          : "Album not found";
+        setError(errorMessage);
       }
     } catch (err) {
-      setError("Failed to load album details");
+      const errorMessage = isOffline()
+        ? "Failed to load offline album details"
+        : "Failed to load album details";
+      setError(errorMessage);
       console.error("Album fetch error:", err);
     } finally {
       setLoading(false);
@@ -222,6 +232,7 @@ export default function AlbumDetailScreen() {
               <TouchableOpacity onPress={() => router.back()}>
                 <Text className="text-neutral-300 text-2xl">‹</Text>
               </TouchableOpacity>
+              <OfflineIndicator />
               <TouchableOpacity>
                 <Text className="text-neutral-300 text-2xl">⋯</Text>
               </TouchableOpacity>
@@ -261,6 +272,13 @@ export default function AlbumDetailScreen() {
                   </Text>
                 )}
               </View>
+
+              {/* Offline mode note */}
+              {isOffline() && (
+                <Text className="text-orange-400 text-xs mt-2 text-center px-4">
+                  Showing downloaded songs only (Offline Mode)
+                </Text>
+              )}
 
               {album.description && (
                 <Text className="text-neutral-400 text-sm mt-3 text-center px-4">

@@ -1,14 +1,27 @@
+import {
+  downloadSong,
+  isDownloaded,
+  isDownloading,
+} from "@/services/SongApiService";
 import { useBottomSheetStore } from "@/store/bottomSheetStore";
 import { usePlayerStore } from "@/store/playerStore";
 import { usePlaylistStore } from "@/store/playlistStore";
 import { Image } from "expo-image";
-import React from "react";
-import { Modal, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function GlobalBottomSheet() {
   const { isVisible, selectedSong, hideBottomSheet } = useBottomSheetStore();
   const { playNow, addToQueue } = usePlayerStore();
   const { playlists, addSongToPlaylist } = usePlaylistStore();
+  const [isDownloadingState, setIsDownloadingState] = useState(false);
 
   const handlePlayNow = () => {
     if (selectedSong) {
@@ -24,10 +37,22 @@ export default function GlobalBottomSheet() {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (selectedSong) {
-      console.log("Download song:", selectedSong.name);
-      hideBottomSheet();
+      try {
+        setIsDownloadingState(true);
+        await downloadSong(selectedSong);
+        Alert.alert("Success", selectedSong.name + " has been downloaded!");
+      } catch (error) {
+        console.error("Download failed:", error);
+        Alert.alert(
+          "Download Failed",
+          "Could not download " + selectedSong.name + ". Please try again."
+        );
+      } finally {
+        setIsDownloadingState(false);
+        hideBottomSheet();
+      }
     }
   };
 
@@ -48,6 +73,10 @@ export default function GlobalBottomSheet() {
   if (!selectedSong) {
     return null;
   }
+
+  const songIsDownloaded = isDownloaded(selectedSong.id);
+  const songIsDownloading =
+    isDownloading(selectedSong.id) || isDownloadingState;
 
   return (
     <Modal
@@ -116,11 +145,40 @@ export default function GlobalBottomSheet() {
 
               <TouchableOpacity
                 onPress={handleDownload}
-                className="flex-row items-center py-4 px-4 bg-neutral-800 rounded-xl"
+                disabled={songIsDownloaded || songIsDownloading}
+                className={`flex-row items-center py-4 px-4 rounded-xl ${
+                  songIsDownloaded
+                    ? "bg-green-500/20 border border-green-500"
+                    : songIsDownloading
+                      ? "bg-blue-500/20 border border-blue-500"
+                      : "bg-neutral-800"
+                }`}
               >
-                <Text className="text-xl mr-4">⬇️</Text>
-                <Text className="text-neutral-100 text-base font-medium">
-                  Download
+                {songIsDownloading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#3b82f6"
+                    style={{ marginRight: 16 }}
+                  />
+                ) : (
+                  <Text className="text-xl mr-4">
+                    {songIsDownloaded ? "✅" : "⬇️"}
+                  </Text>
+                )}
+                <Text
+                  className={`text-base font-medium ${
+                    songIsDownloaded
+                      ? "text-green-400"
+                      : songIsDownloading
+                        ? "text-blue-400"
+                        : "text-neutral-100"
+                  }`}
+                >
+                  {songIsDownloaded
+                    ? "Downloaded"
+                    : songIsDownloading
+                      ? "Downloading..."
+                      : "Download"}
                 </Text>
               </TouchableOpacity>
 
