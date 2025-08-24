@@ -13,14 +13,23 @@ import {
 export default function SearchScreen() {
   const { query, isLoading, error, setQuery, searchAll, clearResults } =
     useSearchStore();
-  const params: { query?: string } = useLocalSearchParams();
+  const params: { query?: string; noFocus?: string } = useLocalSearchParams();
+  const [localQuery, setLocalQuery] = React.useState(query);
+  const shouldAutoFocus = !params.noFocus;
 
   useEffect(() => {
     if (params.query) {
-      setQuery(params.query as string);
-      searchAll(params.query as string);
+      const paramQuery = params.query as string;
+      setLocalQuery(paramQuery);
+      setQuery(paramQuery);
+      searchAll(paramQuery);
     }
   }, [params.query, setQuery, searchAll]);
+
+  // Sync local query with store query when it changes externally
+  useEffect(() => {
+    setLocalQuery(query);
+  }, [query]);
 
   // Clear results when component unmounts
   useEffect(() => {
@@ -28,9 +37,15 @@ export default function SearchScreen() {
   }, [clearResults]);
 
   const handleSearch = () => {
-    if (query.trim()) {
-      searchAll(query);
+    if (localQuery.trim()) {
+      setQuery(localQuery);
+      searchAll(localQuery);
     }
+  };
+
+  const handleQueryChange = (text: string) => {
+    setLocalQuery(text);
+    // Don't immediately update the store to prevent keyboard issues
   };
 
   const isAnyLoading =
@@ -48,17 +63,17 @@ export default function SearchScreen() {
             placeholder="Search songs, albums, playlists, artists..."
             placeholderTextColor="#6b7280"
             className="flex-1 bg-neutral-800 text-neutral-100 px-4 py-3 rounded-xl border border-neutral-700 text-base"
-            value={query}
-            onChangeText={setQuery}
+            value={localQuery}
+            onChangeText={handleQueryChange}
             onSubmitEditing={handleSearch}
             returnKeyType="search"
-            autoFocus
+            autoFocus={shouldAutoFocus}
           />
           <TouchableOpacity
             onPress={handleSearch}
-            disabled={!query.trim() || isAnyLoading}
+            disabled={!localQuery.trim() || isAnyLoading}
             className={`px-5 py-3 rounded-xl ${
-              query.trim() && !isAnyLoading
+              localQuery.trim() && !isAnyLoading
                 ? "bg-blue-600 active:bg-blue-700"
                 : "bg-neutral-700"
             }`}

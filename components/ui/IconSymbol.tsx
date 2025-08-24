@@ -27,6 +27,7 @@ const MAPPING = {
   "speaker.wave.2.fill": "volume-up",
   iphone: "smartphone",
   "magnifyingglass.circle.fill": "search",
+  "person.crop.circle": "person",
 } as IconMapping;
 
 /**

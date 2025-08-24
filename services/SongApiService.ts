@@ -1126,6 +1126,103 @@ export function isDownloading(songId: string) {
   return DownloadService.isDownloading(songId);
 }
 
+// Suggestion API functions
+export async function getSongSuggestions(songId: string): Promise<SaavnSong[]> {
+  try {
+    const response = await axios.get(
+      `https://jiosavan-api-tawny.vercel.app/api/songs/${songId}/suggestions`
+    );
+    if (response.data.success && response.data.data.results) {
+      return response.data.data.results.map((song: any) => ({
+        id: song.id,
+        name: song.name || song.title,
+        album: song.album?.name,
+        albumId: song.album?.id,
+        year: song.year,
+        primaryArtists:
+          song.primaryArtists ||
+          song.artists?.primary?.map((a: any) => a.name).join(", "),
+        image: song.image?.[song.image.length - 1]?.url || song.image?.[0]?.url,
+        downloadUrl: song.downloadUrl?.[song.downloadUrl.length - 1]?.url,
+        duration: song.duration,
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error("Error fetching song suggestions:", error);
+    return [];
+  }
+}
+
+export async function getArtistSuggestions(
+  query: string
+): Promise<SaavnArtist[]> {
+  try {
+    const response = await axios.get(
+      `https://saavn.dev/api/search/artists?query=${encodeURIComponent(query)}`
+    );
+    if (response.data.success && response.data.data.results) {
+      return response.data.data.results.map((artist: any) => ({
+        id: artist.id,
+        name: artist.name,
+        image:
+          artist.image?.[artist.image.length - 1]?.url ||
+          artist.image?.[0]?.url,
+        followerCount: artist.followerCount,
+        type: "artist" as const,
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error("Error fetching artist suggestions:", error);
+    return [];
+  }
+}
+
+export async function getMoodSongs(
+  mood: string,
+  limit: number = 20
+): Promise<SaavnSong[]> {
+  try {
+    // Use search API to find songs related to the mood
+    const moodQueries = {
+      romantic: "romantic love songs bollywood",
+      sad: "sad emotional songs hindi",
+      angry: "rock metal aggressive songs",
+      happy: "upbeat dance happy songs",
+      chill: "chill relaxing ambient music",
+      party: "party dance electronic bollywood",
+      workout: "workout gym motivational songs",
+      devotional: "devotional bhajan spiritual songs",
+    };
+
+    const query = moodQueries[mood as keyof typeof moodQueries] || mood;
+    const response = await axios.get(`${API_BASE}/search/songs`, {
+      params: { query, limit },
+    });
+
+    if (response.data.success && response.data.data.results) {
+      return response.data.data.results.map((song: any) => ({
+        id: song.id,
+        name: song.name || song.title,
+        album: song.album?.name,
+        albumId: song.album?.id,
+        year: song.year,
+        primaryArtists:
+          song.primaryArtists ||
+          song.artists?.primary?.map((a: any) => a.name).join(", "),
+        image: song.image?.[song.image.length - 1]?.url || song.image?.[0]?.url,
+        downloadUrl: song.downloadUrl?.[song.downloadUrl.length - 1]?.url,
+        duration: song.duration,
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error("Error fetching mood songs:", error);
+    return [];
+  }
+}
+
 export const SaavnService = {
   searchSongs,
   searchAlbums,
@@ -1163,4 +1260,8 @@ export const SaavnService = {
   getDownloadedSongsByAlbum,
   getDownloadedSongsByAlbumId,
   createOfflineAlbumFromSongs,
+  // Suggestion functions
+  getSongSuggestions,
+  getArtistSuggestions,
+  getMoodSongs,
 };
