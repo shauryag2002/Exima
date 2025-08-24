@@ -8,6 +8,7 @@ import NetworkService from "./NetworkService";
 const STORE_FILE = FileSystem.documentDirectory + "play_store.json";
 const PLAY_THRESHOLD = 5;
 const API_BASE = process.env.EXPO_PUBLIC_BASE_API;
+const SUGGESTION_API = "https://jiosavan-api2.vercel.app";
 
 export interface SaavnSong {
   id: string;
@@ -636,18 +637,15 @@ export function getBestAvailableUrl(song: SaavnSong): string | undefined {
   // First check if song is downloaded locally
   const localUri = DownloadService.getLocalUri(song.id);
   if (localUri) {
-    console.log(`Using local file for song ${song.name}: ${localUri}`);
     return localUri;
   }
 
   // Fallback to CDN URL only if online
   if (NetworkService.isOnline()) {
-    console.log(`Using CDN for song ${song.name}: ${song.downloadUrl}`);
     return song.downloadUrl;
   }
 
   // Offline and no local file available
-  console.log(`Offline: No local file available for song ${song.name}`);
   return undefined;
 }
 
@@ -731,7 +729,6 @@ export async function getAlbumDetailsOffline(albumId: string): Promise<{
   }
 
   // Offline mode or online failed - try to find downloaded songs
-  console.log("Attempting offline album details for:", albumId);
 
   // Try to find songs by album ID first
   let downloadedSongs = getDownloadedSongsByAlbumId(albumId);
@@ -1130,7 +1127,7 @@ export function isDownloading(songId: string) {
 export async function getSongSuggestions(songId: string): Promise<SaavnSong[]> {
   try {
     const response = await axios.get(
-      `https://jiosavan-api-tawny.vercel.app/api/songs/${songId}/suggestions`
+      `${SUGGESTION_API}/api/songs/${songId}/suggestions`
     );
     if (response.data.success && response.data.data.results) {
       return response.data.data.results.map((song: any) => ({

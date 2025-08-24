@@ -11,7 +11,7 @@
 
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.shauryag2002.Exima"
+      "bundleIdentifier": "me.exima"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +25,7 @@
         "WRITE_EXTERNAL_STORAGE"
       ],
       "edgeToEdgeEnabled": true,
-      "package": "com.shauryag2002.Exima"
+      "package": "me.exima"
     },
     "web": {
       "bundler": "metro",

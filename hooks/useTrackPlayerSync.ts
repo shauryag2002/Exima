@@ -18,6 +18,7 @@ export function useTrackPlayerSync() {
     setPosition,
     setDuration,
     updateFromTrackPlayer,
+    checkAndLoadRecommendations,
   } = usePlayerStore();
 
   useTrackPlayerEvents(events, async (event) => {
@@ -29,6 +30,8 @@ export function useTrackPlayerSync() {
       case Event.PlaybackActiveTrackChanged:
         if (event.track) {
           setCurrentTrack(event.track);
+          // Check for recommendations when track changes
+          checkAndLoadRecommendations();
         }
         break;
 

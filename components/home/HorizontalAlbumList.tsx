@@ -78,9 +78,6 @@ export const HorizontalAlbumList: React.FC<HorizontalAlbumListProps> = ({
   const handleAlbumPress = (album: SaavnAlbum) => {
     if (onAlbumPress) {
       onAlbumPress(album);
-    } else {
-      // Default action: navigate to album details
-      console.log("Navigate to album:", album.name);
     }
   };
 

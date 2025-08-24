@@ -13,8 +13,12 @@ import { MiniPlayer } from "@/components/MiniPlayer";
 import { NetworkStatusBanner } from "@/components/NetworkStatus";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useTrackPlayerSync } from "@/hooks/useTrackPlayerSync";
-import TrackPlayerService, { setupPlayer } from "@/services/TrackPlayerService";
+import TrackPlayerService, {
+  setPlayerStoreRef,
+  setupPlayer,
+} from "@/services/TrackPlayerService";
 import { useNetworkStore } from "@/store/networkStore";
+import { usePlayerStore } from "@/store/playerStore";
 import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import TrackPlayer from "react-native-track-player";
@@ -31,6 +35,9 @@ export default function RootLayout() {
   useTrackPlayerSync();
 
   useEffect(() => {
+    // Set up player store reference for TrackPlayer service
+    setPlayerStoreRef(usePlayerStore);
+
     setupPlayer()
       .then(() => {
         // Player is ready to use

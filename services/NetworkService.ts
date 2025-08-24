@@ -55,7 +55,6 @@ class NetworkService {
 
     if (hasChanged) {
       this.currentState = newState;
-      console.log("Network state changed:", newState);
 
       // Notify all listeners
       this.listeners.forEach((listener) => {
