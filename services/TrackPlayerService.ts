@@ -3,7 +3,7 @@ import TrackPlayer, {
   Capability,
   Event,
   RepeatMode,
-} from 'react-native-track-player';
+} from "react-native-track-player";
 
 export const DefaultRepeatMode = RepeatMode.Queue;
 export const DefaultAudioServiceBehaviour =
@@ -36,11 +36,11 @@ export const setupPlayer = async () => {
         Capability.SkipToNext,
         Capability.SkipToPrevious,
       ],
-      progressUpdateEventInterval: 2,
+      progressUpdateEventInterval: 1,
     });
     await TrackPlayer.setRepeatMode(DefaultRepeatMode);
   } catch (error) {
-    console.error('Error setting up player:', error);
+    console.error("Error setting up player:", error);
     throw error;
   }
 };
@@ -49,14 +49,17 @@ const TrackPlayerService = async () => {
   try {
     TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
     TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
-    TrackPlayer.addEventListener(Event.RemoteNext, () => TrackPlayer.skipToNext());
-    TrackPlayer.addEventListener(Event.RemotePrevious, () => TrackPlayer.skipToPrevious());
+    TrackPlayer.addEventListener(Event.RemoteNext, () =>
+      TrackPlayer.skipToNext()
+    );
+    TrackPlayer.addEventListener(Event.RemotePrevious, () =>
+      TrackPlayer.skipToPrevious()
+    );
     TrackPlayer.addEventListener(Event.RemoteSeek, (data) => {
       TrackPlayer.seekTo(data.position);
     });
-  }
-  catch (error) {
-    console.error('Error in TrackPlayerService:', error);
+  } catch (error) {
+    console.error("Error in TrackPlayerService:", error);
   }
 };
 export default TrackPlayerService;

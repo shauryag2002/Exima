@@ -11,6 +11,7 @@ export interface SaavnSong {
   id: string;
   name: string;
   album?: string;
+  albumId?: string;
   year?: string;
   primaryArtists?: string;
   image?: string; // largest image url
@@ -160,10 +161,16 @@ function mapSong(raw: any): SaavnSong {
     (raw.album && typeof raw.album === "object" ? raw.album.name : raw.album) ||
     raw.album_name;
 
+  // Album ID extraction
+  const albumId =
+    (raw.album && typeof raw.album === "object" ? raw.album.id : undefined) ||
+    raw.album_id;
+
   return {
     id: raw.id,
     name: raw.name || raw.title,
     album: albumName,
+    albumId,
     year: raw.year,
     primaryArtists,
     image,
@@ -542,10 +549,54 @@ export async function getAlbum(id: string): Promise<SaavnAlbum | null> {
   return entry ? mapAlbum(entry) : null;
 }
 
+export async function getAlbumDetails(id: string): Promise<{
+  album: SaavnAlbum;
+  songs: SaavnSong[];
+} | null> {
+  try {
+    const data = await api<any>(`/albums?id=${encodeURIComponent(id)}`);
+    const entry = Array.isArray(data.data) ? data.data[0] : data.data;
+
+    if (!entry) return null;
+
+    const album = mapAlbum(entry);
+    const songs = (entry.songs || [])
+      .map(mapSong)
+      .filter((song: SaavnSong) => song.id);
+
+    return { album, songs };
+  } catch (error) {
+    console.error("Failed to fetch album details:", error);
+    return null;
+  }
+}
+
 export async function getPlaylist(id: string): Promise<SaavnPlaylist | null> {
   const data = await api<any>(`/playlists?id=${encodeURIComponent(id)}`);
   const entry = Array.isArray(data.data) ? data.data[0] : data.data;
   return entry ? mapPlaylist(entry) : null;
+}
+
+export async function getPlaylistDetails(id: string): Promise<{
+  playlist: SaavnPlaylist;
+  songs: SaavnSong[];
+} | null> {
+  try {
+    const data = await api<any>(`/playlists?id=${encodeURIComponent(id)}`);
+    const entry = Array.isArray(data.data) ? data.data[0] : data.data;
+
+    if (!entry) return null;
+
+    const playlist = mapPlaylist(entry);
+    const songs = (entry.songs || [])
+      .map(mapSong)
+      .filter((song: SaavnSong) => song.id);
+
+    return { playlist, songs };
+  } catch (error) {
+    console.error("Failed to fetch playlist details:", error);
+    return null;
+  }
 }
 
 export async function incrementPlayAndMaybeCache(song: SaavnSong) {
@@ -841,11 +892,11 @@ export function getRecentlyPlayedAlbums(): SaavnAlbum[] {
   const albumsMap = new Map<string, SaavnAlbum>();
 
   memory.recentlyPlayed.forEach((song: SaavnSong) => {
-    if (song.album && song.id) {
-      const albumId = `${song.album}-${song.primaryArtists}`;
-      if (!albumsMap.has(albumId)) {
-        albumsMap.set(albumId, {
-          id: albumId,
+    if (song.album && song.albumId) {
+      // Use the actual album ID from the API
+      if (!albumsMap.has(song.albumId)) {
+        albumsMap.set(song.albumId, {
+          id: song.albumId,
           name: song.album,
           image: song.image,
           primaryArtists: song.primaryArtists,
@@ -867,7 +918,9 @@ export const SaavnService = {
   searchAll,
   getSong,
   getAlbum,
+  getAlbumDetails,
   getPlaylist,
+  getPlaylistDetails,
   incrementPlayAndMaybeCache,
   getPlayCount,
   isDownloaded,

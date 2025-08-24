@@ -31,6 +31,7 @@ interface PlayerState {
   playNow: (song: SaavnSong) => Promise<void>;
   clearQueue: () => Promise<void>;
   shufflePlay: (songs: SaavnSong[]) => Promise<void>;
+  playInOrder: (songs: SaavnSong[]) => Promise<void>;
 
   // State updaters
   setCurrentTrack: (track: Track | null) => void;
@@ -200,6 +201,42 @@ export const usePlayerStore = create<PlayerState>()(
           await incrementPlayAndMaybeCache(shuffledSongs[0]);
         } catch (e) {
           console.warn("Failed to shuffle play:", e);
+        }
+      },
+
+      playInOrder: async (songs: SaavnSong[]) => {
+        try {
+          if (songs.length === 0) return;
+
+          const tracks: Track[] = songs
+            .filter((song) => song.downloadUrl)
+            .map((song) => ({
+              id: song.id,
+              url: song.downloadUrl!,
+              title: song.name,
+              artist: song.primaryArtists,
+              artwork: song.image,
+              album: song.album,
+              duration: song.duration,
+            }));
+
+          if (tracks.length === 0) return;
+
+          await TrackPlayer.reset();
+          await TrackPlayer.add(tracks);
+          await TrackPlayer.play();
+
+          set({
+            queue: tracks,
+            currentIndex: 0,
+            currentTrack: tracks[0],
+            isPlaying: true,
+          });
+
+          // Track play count for first song
+          await incrementPlayAndMaybeCache(songs[0]);
+        } catch (e) {
+          console.warn("Failed to play in order:", e);
         }
       },
 

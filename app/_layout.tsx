@@ -68,6 +68,27 @@ export default function RootLayout() {
             name="playlists"
             options={{ title: "Playlists", headerShown: false }}
           />
+          <Stack.Screen
+            name={"album/[id]"}
+            options={{
+              title: "Album",
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name={"playlist/[id]"}
+            options={{
+              title: "Playlist",
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name={"playlist/local/[id]"}
+            options={{
+              title: "Playlist",
+              headerShown: true,
+            }}
+          />
         </Stack>
         <StatusBar style="auto" />
         <MiniPlayer />
