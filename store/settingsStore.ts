@@ -16,6 +16,7 @@ interface SettingsState {
 
   // Download settings
   autoDownloadOnPlay: boolean;
+  smartCacheThreshold: number; // Number of plays before auto-download
   downloadLocation: "internal" | "external";
 
   // Actions
@@ -25,6 +26,7 @@ interface SettingsState {
   setRepeatMode: (mode: "off" | "track" | "queue") => void;
   setShuffleEnabled: (enabled: boolean) => void;
   setAutoDownloadOnPlay: (enabled: boolean) => void;
+  setSmartCacheThreshold: (threshold: number) => void;
   setDownloadLocation: (location: "internal" | "external") => void;
   resetSettings: () => void;
 }
@@ -36,6 +38,7 @@ const defaultSettings = {
   repeatMode: "off" as const,
   shuffleEnabled: false,
   autoDownloadOnPlay: false,
+  smartCacheThreshold: 3,
   downloadLocation: "internal" as const,
 };
 
@@ -51,6 +54,8 @@ export const useSettingsStore = create<SettingsState>()(
       setRepeatMode: (mode) => set({ repeatMode: mode }),
       setShuffleEnabled: (enabled) => set({ shuffleEnabled: enabled }),
       setAutoDownloadOnPlay: (enabled) => set({ autoDownloadOnPlay: enabled }),
+      setSmartCacheThreshold: (threshold) =>
+        set({ smartCacheThreshold: threshold }),
       setDownloadLocation: (location) => set({ downloadLocation: location }),
       resetSettings: () => set(defaultSettings),
     }),

@@ -6,14 +6,15 @@ import {
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import "react-native-reanimated";
 import "./../global.css";
 
 import GlobalBottomSheet from "@/components/GlobalBottomSheet";
 import { MiniPlayer } from "@/components/MiniPlayer";
+import { NetworkStatusBanner } from "@/components/NetworkStatus";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useTrackPlayerSync } from "@/hooks/useTrackPlayerSync";
 import TrackPlayerService, { setupPlayer } from "@/services/TrackPlayerService";
+import { useNetworkStore } from "@/store/networkStore";
 import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import TrackPlayer from "react-native-track-player";
@@ -24,6 +25,7 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
   const [TrackPlayerReady, setTrackPlayerReady] = useState(false);
+  const { initializeNetworkListener } = useNetworkStore();
 
   // Sync TrackPlayer state with Zustand store
   useTrackPlayerSync();
@@ -38,6 +40,12 @@ export default function RootLayout() {
         console.error("Error setting up TrackPlayer:", error);
       });
   }, []);
+
+  // Initialize network listener
+  useEffect(() => {
+    const unsubscribe = initializeNetworkListener();
+    return unsubscribe;
+  }, [initializeNetworkListener]);
   if (!loaded || !TrackPlayerReady) {
     // Async font loading only occurs in development.
     return null;
@@ -63,6 +71,10 @@ export default function RootLayout() {
           <Stack.Screen
             name="downloads"
             options={{ title: "Downloads", headerShown: false }}
+          />
+          <Stack.Screen
+            name="settings"
+            options={{ title: "Settings", headerShown: false }}
           />
           <Stack.Screen
             name="playlists"
@@ -91,6 +103,7 @@ export default function RootLayout() {
           />
         </Stack>
         <StatusBar style="auto" />
+        <NetworkStatusBanner />
         <MiniPlayer />
         <GlobalBottomSheet />
       </ThemeProvider>

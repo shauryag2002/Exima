@@ -1,269 +1,359 @@
-import { SaavnSong } from "@/services/SongApiService";
-import { useBottomSheetStore } from "@/store/bottomSheetStore";
+import DownloadService, { DownloadProgress } from "@/services/DownloadService";
+import {
+  SaavnSong,
+  deleteSong,
+  getDownloadProgress,
+  getDownloadedSongs,
+  isDownloading,
+} from "@/services/SongApiService";
 import { usePlayerStore } from "@/store/playerStore";
 import { Image } from "expo-image";
-import * as MediaLibrary from "expo-media-library";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { TabBar, TabView } from "react-native-tab-view";
 
-// Inline components to avoid import issues
-const DownloadedSongsTab = ({
-  onSongsLoaded,
-}: {
-  onSongsLoaded: (songs: SaavnSong[]) => void;
-}) => {
-  const [downloadedSongs, setDownloadedSongs] = useState<SaavnSong[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { playNow } = usePlayerStore();
-  const { showBottomSheet } = useBottomSheetStore();
+// Download progress indicator component
+const DownloadProgressIndicator = ({ songId }: { songId: string }) => {
+  const [progress, setProgress] = useState<DownloadProgress | null>(null);
 
   useEffect(() => {
-    loadDownloadedSongs();
-  }, []);
-
-  const loadDownloadedSongs = async () => {
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
-        setIsLoading(false);
-        return;
+    const updateProgress = (progressData: DownloadProgress) => {
+      if (progressData.songId === songId) {
+        setProgress(progressData);
       }
+    };
 
-      const assets = await MediaLibrary.getAssetsAsync({
-        mediaType: "audio",
-        first: 1000,
-        sortBy: MediaLibrary.SortBy.creationTime,
-      });
+    const unsubscribe = DownloadService.onProgressUpdate(updateProgress);
 
-      const songs: SaavnSong[] = assets.assets.map((asset, index) => ({
-        id: asset.id,
-        name: asset.filename.replace(/\.[^/.]+$/, ""),
-        primaryArtists: "Local Artist",
-        duration: asset.duration,
-        image: undefined,
-        downloadUrl: asset.uri,
-      }));
-
-      setDownloadedSongs(songs);
-      onSongsLoaded(songs); // Share songs with parent component
-    } catch (error) {
-      console.error("Error loading downloaded songs:", error);
-    } finally {
-      setIsLoading(false);
+    // Get initial progress
+    const initialProgress = getDownloadProgress(songId);
+    if (initialProgress) {
+      setProgress(initialProgress);
     }
-  };
 
-  const handleSongPress = (song: SaavnSong) => {
-    playNow(song);
-  };
+    return unsubscribe;
+  }, [songId]);
 
-  const handleSongLongPress = (song: SaavnSong) => {
-    showBottomSheet(song);
-  };
+  if (!progress || progress.progress >= 1) return null;
 
-  const renderSong = ({ item }: { item: SaavnSong }) => (
-    <TouchableOpacity
-      onPress={() => handleSongPress(item)}
-      onLongPress={() => handleSongLongPress(item)}
-      className="flex-row gap-4 py-3 px-4 active:bg-neutral-800"
-    >
-      <View className="w-14 h-14 rounded-xl bg-neutral-800 justify-center items-center">
-        {item.image ? (
-          <Image
-            source={{ uri: item.image }}
-            style={{ width: 56, height: 56, borderRadius: 12 }}
-            transition={200}
-          />
-        ) : (
-          <Text className="text-neutral-400 text-lg">🎵</Text>
-        )}
-      </View>
-
-      <View className="flex-1">
-        <Text className="text-neutral-100 font-medium" numberOfLines={1}>
-          {item.name}
-        </Text>
-        <Text className="text-neutral-400 text-sm mt-1" numberOfLines={1}>
-          {item.primaryArtists}
-        </Text>
-        {item.duration && (
-          <Text className="text-neutral-500 text-xs mt-0.5">
-            {Math.floor(item.duration / 60)}:
-            {(item.duration % 60).toString().padStart(2, "0")}
-          </Text>
-        )}
-      </View>
-
-      <View className="justify-center items-center">
-        <View className="w-6 h-6 rounded-full bg-green-500/20 justify-center items-center">
-          <Text className="text-green-400 text-xs">✓</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  if (isLoading) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <ActivityIndicator color="#d4d4d8" size="large" />
-        <Text className="text-neutral-400 mt-2">Loading downloads...</Text>
-      </View>
-    );
-  }
+  const progressWidth = Math.round(progress.progress * 100);
 
   return (
-    <View className="flex-1">
-      <FlatList
-        data={downloadedSongs}
-        keyExtractor={(item) => item.id}
-        renderItem={renderSong}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        ItemSeparatorComponent={() => <View className="h-px bg-neutral-800" />}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View className="flex-1 justify-center items-center mt-16">
-            <Text className="text-6xl mb-4">📱</Text>
-            <Text className="text-neutral-500 text-center text-lg">
-              No downloads found
-            </Text>
-            <Text className="text-neutral-600 text-sm text-center mt-2">
-              Downloaded songs will appear here
-            </Text>
-          </View>
-        }
+    <View className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-700">
+      <View
+        className="h-full bg-blue-500"
+        style={{ width: `${progressWidth}%` }}
       />
     </View>
   );
 };
 
-const DownloadedAlbumsTab = () => (
-  <View className="flex-1 justify-center items-center">
-    <Text className="text-6xl mb-4">💿</Text>
-    <Text className="text-neutral-500 text-center text-lg">
-      No downloaded albums
-    </Text>
-    <Text className="text-neutral-600 text-sm text-center mt-2">
-      Downloaded albums will appear here
-    </Text>
-  </View>
-);
-
-const DownloadedPlaylistsTab = () => (
-  <View className="flex-1 justify-center items-center">
-    <Text className="text-6xl mb-4">📋</Text>
-    <Text className="text-neutral-500 text-center text-lg">
-      No downloaded playlists
-    </Text>
-    <Text className="text-neutral-600 text-sm text-center mt-2">
-      Downloaded playlists will appear here
-    </Text>
-  </View>
-);
-
-const DownloadedArtistsTab = () => (
-  <View className="flex-1 justify-center items-center">
-    <Text className="text-6xl mb-4">👨‍🎤</Text>
-    <Text className="text-neutral-500 text-center text-lg">
-      No downloaded artists
-    </Text>
-    <Text className="text-neutral-600 text-sm text-center mt-2">
-      Downloaded artist content will appear here
-    </Text>
-  </View>
-);
-
-const routes = [
-  { key: "songs", title: "Songs" },
-  { key: "albums", title: "Albums" },
-  { key: "playlists", title: "Playlists" },
-  { key: "artists", title: "Artists" },
-];
-
 export default function DownloadsScreen() {
-  const [index, setIndex] = useState(0);
-  const [allDownloadedSongs, setAllDownloadedSongs] = useState<SaavnSong[]>([]);
-  const { shufflePlay } = usePlayerStore();
+  const [downloadedSongs, setDownloadedSongs] = useState<SaavnSong[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const { playInOrder } = usePlayerStore();
 
-  const handleShufflePress = () => {
-    if (allDownloadedSongs.length > 0) {
-      shufflePlay(allDownloadedSongs);
+  const loadDownloadedSongs = useCallback(async () => {
+    try {
+      // Wait for DownloadService to be initialized
+      await DownloadService.waitForInitialization();
+
+      // Force DownloadService to reload from storage first
+      await DownloadService.refreshDownloadedSongs();
+
+      // Get Exima downloaded songs only
+      const songs = getDownloadedSongs();
+      console.log("Downloaded songs from API:", songs.length, songs);
+
+      // Also check DownloadService directly
+      const directSongs = DownloadService.getDownloadedSongs();
+      console.log(
+        "Downloaded songs from DownloadService:",
+        directSongs.length,
+        directSongs
+      );
+
+      setDownloadedSongs(songs);
+    } catch (error) {
+      console.error("Error loading downloaded songs:", error);
     }
-  };
+  }, []);
 
-  const handleSongsLoaded = (songs: SaavnSong[]) => {
-    setAllDownloadedSongs(songs);
-  };
+  useEffect(() => {
+    loadDownloadedSongs().finally(() => setIsLoading(false));
+  }, [loadDownloadedSongs]);
 
-  const renderScene = ({ route }: any) => {
-    switch (route.key) {
-      case "songs":
-        return <DownloadedSongsTab onSongsLoaded={handleSongsLoaded} />;
-      case "albums":
-        return <DownloadedAlbumsTab />;
-      case "playlists":
-        return <DownloadedPlaylistsTab />;
-      case "artists":
-        return <DownloadedArtistsTab />;
-      default:
-        return null;
-    }
-  };
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadDownloadedSongs();
+    setRefreshing(false);
+  }, [loadDownloadedSongs]);
 
-  const renderTabBar = (props: any) => (
-    <TabBar
-      {...props}
-      indicatorStyle={{ backgroundColor: "#d4d4d8", height: 2 }}
-      style={{ backgroundColor: "transparent", elevation: 0 }}
-      labelStyle={{
-        fontSize: 14,
-        fontWeight: "600",
-        textTransform: "none",
-      }}
-      activeColor="#d4d4d8"
-      inactiveColor="#737373"
-      pressColor="transparent"
-      scrollEnabled={false}
-    />
+  const handleSongPress = useCallback(
+    (song: SaavnSong, index: number) => {
+      // Play from this song onwards
+      const songsFromIndex = downloadedSongs.slice(index);
+      playInOrder(songsFromIndex);
+    },
+    [downloadedSongs, playInOrder]
   );
+
+  const handleSongLongPress = useCallback(
+    (song: SaavnSong) => {
+      const confirmDelete = () => {
+        Alert.alert(
+          "Delete Download",
+          `Are you sure you want to delete "${song.name}" from your downloads?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Delete",
+              style: "destructive",
+              onPress: async () => {
+                try {
+                  await deleteSong(song.id);
+                  await loadDownloadedSongs();
+                } catch (error) {
+                  Alert.alert("Error", "Failed to delete song");
+                }
+              },
+            },
+          ]
+        );
+      };
+
+      Alert.alert(
+        "Song Options",
+        `What would you like to do with "${song.name}"?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Play",
+            onPress: () => {
+              const index = downloadedSongs.findIndex((s) => s.id === song.id);
+              handleSongPress(song, index);
+            },
+          },
+          {
+            text: "Delete Download",
+            style: "destructive",
+            onPress: confirmDelete,
+          },
+        ]
+      );
+    },
+    [downloadedSongs, handleSongPress, loadDownloadedSongs]
+  );
+
+  const formatDuration = useCallback((seconds?: number) => {
+    if (!seconds) return "--:--";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  }, []);
+
+  const formatFileSize = useCallback((bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  }, []);
+
+  const renderSong = useCallback(
+    ({ item, index }: { item: SaavnSong; index: number }) => {
+      const isCurrentlyDownloading = isDownloading(item.id);
+
+      return (
+        <TouchableOpacity
+          onPress={() => handleSongPress(item, index)}
+          onLongPress={() => handleSongLongPress(item)}
+          className="flex-row gap-4 py-3 px-4 active:bg-neutral-800 relative"
+          disabled={isCurrentlyDownloading}
+        >
+          <View className="w-14 h-14 rounded-xl bg-neutral-800 justify-center items-center relative">
+            {item.image ? (
+              <Image
+                source={{ uri: item.image }}
+                style={{ width: 56, height: 56, borderRadius: 12 }}
+                transition={200}
+              />
+            ) : (
+              <View className="w-full h-full rounded-xl bg-neutral-800 items-center justify-center">
+                <Text className="text-neutral-400 text-lg">🎵</Text>
+              </View>
+            )}
+
+            {isCurrentlyDownloading && (
+              <View className="absolute inset-0 bg-black/50 rounded-xl justify-center items-center">
+                <ActivityIndicator size="small" color="#3b82f6" />
+              </View>
+            )}
+          </View>
+
+          <View className="flex-1">
+            <Text className="text-neutral-100 font-medium" numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text className="text-neutral-400 text-sm mt-1" numberOfLines={1}>
+              {item.primaryArtists}
+            </Text>
+            <View className="flex-row items-center mt-1">
+              {item.duration && (
+                <Text className="text-neutral-500 text-xs">
+                  {formatDuration(item.duration)}
+                </Text>
+              )}
+              <Text className="text-neutral-500 text-xs mx-1">•</Text>
+              <Text className="text-blue-400 text-xs">Downloaded</Text>
+            </View>
+          </View>
+
+          <View className="justify-center">
+            <Text className="text-neutral-500 text-xs">♪</Text>
+          </View>
+
+          {isCurrentlyDownloading && (
+            <DownloadProgressIndicator songId={item.id} />
+          )}
+        </TouchableOpacity>
+      );
+    },
+    [handleSongPress, handleSongLongPress, formatDuration]
+  );
+
+  const renderEmptyState = () => (
+    <View className="flex-1 items-center justify-center px-6">
+      <Text className="text-6xl mb-4">📱</Text>
+      <Text className="text-neutral-100 text-xl font-semibold mb-2 text-center">
+        No Downloads Yet
+      </Text>
+      <Text className="text-neutral-400 text-center leading-6">
+        Songs you download will appear here.{"\n"}
+        Enable Smart Caching in settings to auto-download frequently played
+        songs.
+      </Text>
+
+      {/* Debug info */}
+      <View className="mt-4 p-3 bg-neutral-800 rounded-lg">
+        <Text className="text-neutral-300 text-xs text-center">
+          Debug: Checking for downloads...{"\n"}
+          Total storage: {formatFileSize(DownloadService.getTotalStorageUsed())}
+        </Text>
+
+        <TouchableOpacity
+          className="mt-2 bg-neutral-700 px-3 py-2 rounded"
+          onPress={async () => {
+            await DownloadService.debugStorage();
+            await loadDownloadedSongs();
+          }}
+        >
+          <Text className="text-neutral-300 text-xs text-center">
+            Debug Storage
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View className="flex-row gap-3 mt-6">
+        <TouchableOpacity
+          className="flex-1 bg-blue-500 px-6 py-3 rounded-xl"
+          onPress={() => router.push("/search")}
+        >
+          <Text className="text-white font-semibold text-center">
+            Discover Music
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className="bg-green-600 px-6 py-3 rounded-xl"
+          onPress={async () => {
+            try {
+              // Test download with a sample song
+              const testSong = {
+                id: "test-123",
+                name: "Test Song",
+                primaryArtists: "Test Artist",
+                downloadUrl:
+                  "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav",
+              };
+              Alert.alert("Testing", "Attempting test download...");
+              await DownloadService.downloadSong(testSong as any);
+              await loadDownloadedSongs();
+            } catch (error) {
+              Alert.alert("Test Failed", String(error));
+            }
+          }}
+        >
+          <Text className="text-white font-semibold text-center">
+            Test Download
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-neutral-950 items-center justify-center">
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text className="text-neutral-400 mt-4">Loading downloads...</Text>
+      </View>
+    );
+  }
+
+  const songsCount = downloadedSongs.length;
+  const storageUsed = formatFileSize(DownloadService.getTotalStorageUsed());
 
   return (
     <View className="flex-1 bg-neutral-950">
       {/* Header */}
-      <View className="flex-row items-center justify-between pt-16 pb-4 px-6">
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text className="text-neutral-300 text-lg">‹</Text>
-        </TouchableOpacity>
-        <Text className="text-neutral-100 text-xl font-semibold">
-          Downloads
+      <View className="px-6 pt-16 pb-4">
+        <Text className="text-3xl font-bold text-white">Downloads</Text>
+        <Text className="text-neutral-400 text-base mt-1">
+          Your offline music collection
         </Text>
-        <View className="w-6" />
       </View>
 
-      {/* Tab View */}
-      <TabView
-        navigationState={{ index, routes }}
-        renderScene={renderScene}
-        onIndexChange={setIndex}
-        renderTabBar={renderTabBar}
-        style={{ flex: 1 }}
-      />
+      {songsCount === 0 ? (
+        renderEmptyState()
+      ) : (
+        <View className="flex-1">
+          {/* Header Stats */}
+          <View className="px-4 py-3 border-b border-neutral-800">
+            <Text className="text-neutral-100 font-semibold">
+              {songsCount} song{songsCount !== 1 ? "s" : ""} downloaded
+            </Text>
+            <Text className="text-neutral-400 text-sm">
+              Storage: {storageUsed}
+            </Text>
+          </View>
 
-      {/* Shuffle Button - Fixed Bottom Right */}
-      <TouchableOpacity
-        onPress={handleShufflePress}
-        className="absolute bottom-24 right-6 w-14 h-14 bg-blue-500 rounded-full justify-center items-center shadow-lg"
-        style={{ elevation: 8 }}
-      >
-        <Text className="text-white text-xl">🔀</Text>
-      </TouchableOpacity>
+          <FlatList
+            data={downloadedSongs}
+            keyExtractor={(item) => item.id}
+            renderItem={renderSong}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor="#3b82f6"
+                colors={["#3b82f6"]}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 100 }}
+          />
+        </View>
+      )}
     </View>
   );
 }

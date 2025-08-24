@@ -1,7 +1,9 @@
 import { HorizontalAlbumList } from "@/components/home/HorizontalAlbumList";
 import { HorizontalSongList } from "@/components/home/HorizontalSongList";
+import { OfflineIndicator } from "@/components/NetworkStatus";
 import { SaavnAlbum } from "@/services/SongApiService";
 import { useHomeStore } from "@/store/homeStore";
+import { useNetworkStore } from "@/store/networkStore";
 import { router } from "expo-router";
 import React, { useEffect } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
@@ -35,6 +37,7 @@ export default function HomeScreen() {
     loadLatestReleases,
   } = useHomeStore();
 
+  const { isOnline } = useNetworkStore();
   const [refreshing, setRefreshing] = React.useState(false);
 
   useEffect(() => {
@@ -67,10 +70,17 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View className="px-6 pt-16 pb-8">
-          <Text className="text-3xl font-bold text-white">{getGreeting()}</Text>
-          <Text className="text-neutral-400 text-base mt-1">
-            Discover your music
-          </Text>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text className="text-3xl font-bold text-white">
+                {getGreeting()}
+              </Text>
+              <Text className="text-neutral-400 text-base mt-1">
+                {isOnline ? "Discover your music" : "Your downloaded music"}
+              </Text>
+            </View>
+            <OfflineIndicator />
+          </View>
         </View>
 
         {/* Recently Played Songs */}
@@ -92,55 +102,61 @@ export default function HomeScreen() {
           />
         )}
 
-        {/* Good Songs Recommendations */}
-        <HorizontalSongList
-          title="Recommended for You"
-          songs={recommendations}
-          isLoading={isLoadingRecommendations}
-          onRefresh={loadRecommendations}
-        />
+        {/* Good Songs Recommendations - Only show when online */}
+        {isOnline && (
+          <HorizontalSongList
+            title="Recommended for You"
+            songs={recommendations}
+            isLoading={isLoadingRecommendations}
+            onRefresh={loadRecommendations}
+          />
+        )}
 
-        {/* Top Charts Songs */}
+        {/* Top Charts Songs - Show always (offline returns downloaded content) */}
         <HorizontalSongList
-          title="Top Chart Songs"
+          title={isOnline ? "Top Chart Songs" : "Your Downloaded Songs"}
           songs={topCharts.songs}
           isLoading={isLoadingTopCharts}
           onRefresh={loadTopCharts}
         />
 
-        {/* Top Charts Albums */}
+        {/* Top Charts Albums - Show always (offline returns downloaded content) */}
         <HorizontalAlbumList
-          title="Top Chart Albums"
+          title={isOnline ? "Top Chart Albums" : "Your Downloaded Albums"}
           albums={topCharts.albums}
           isLoading={isLoadingTopCharts}
           onRefresh={loadTopCharts}
           onAlbumPress={handleAlbumPress}
         />
 
-        {/* Trending Songs */}
+        {/* Trending Songs - Show always (offline returns downloaded content) */}
         <HorizontalSongList
-          title="Trending Songs"
+          title={isOnline ? "Trending Songs" : "Recently Played Downloaded"}
           songs={trending.songs}
           isLoading={isLoadingTrending}
           onRefresh={loadTrending}
         />
 
-        {/* Latest Release Songs */}
-        <HorizontalSongList
-          title="Latest Release Songs"
-          songs={latestReleases.songs}
-          isLoading={isLoadingLatestReleases}
-          onRefresh={loadLatestReleases}
-        />
+        {/* Latest Release Songs - Only show when online */}
+        {isOnline && (
+          <HorizontalSongList
+            title="Latest Release Songs"
+            songs={latestReleases.songs}
+            isLoading={isLoadingLatestReleases}
+            onRefresh={loadLatestReleases}
+          />
+        )}
 
-        {/* Latest Release Albums */}
-        <HorizontalAlbumList
-          title="Latest Release Albums"
-          albums={latestReleases.albums}
-          isLoading={isLoadingLatestReleases}
-          onRefresh={loadLatestReleases}
-          onAlbumPress={handleAlbumPress}
-        />
+        {/* Latest Release Albums - Only show when online */}
+        {isOnline && (
+          <HorizontalAlbumList
+            title="Latest Release Albums"
+            albums={latestReleases.albums}
+            isLoading={isLoadingLatestReleases}
+            onRefresh={loadLatestReleases}
+            onAlbumPress={handleAlbumPress}
+          />
+        )}
 
         {/* Bottom Spacing */}
         <View className="h-32" />

@@ -1,6 +1,8 @@
 import axios from "axios";
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
+import DownloadService from "./DownloadService";
+import NetworkService from "./NetworkService";
 
 // Simple persistent play count + downloaded flags store via a JSON file.
 const STORE_FILE = FileSystem.documentDirectory + "play_store.json";
@@ -615,13 +617,10 @@ export async function incrementPlayAndMaybeCache(song: SaavnSong) {
     memory.recentlyPlayed = memory.recentlyPlayed.slice(0, 50);
   }
 
-  if (current >= PLAY_THRESHOLD && !memory.downloaded[song.id]) {
-    ensureDownloaded(song)
-      .catch((e) => console.warn("Download failed", e))
-      .finally(saveStore);
-  } else {
-    saveStore();
-  }
+  // Smart caching using new download service
+  await DownloadService.checkSmartCache(song, current);
+
+  await saveStore();
 }
 
 export function getPlayCount(id: string): number {
@@ -629,10 +628,196 @@ export function getPlayCount(id: string): number {
 }
 
 export function isDownloaded(id: string): boolean {
-  return !!memory.downloaded[id];
+  return DownloadService.isDownloaded(id);
 }
 
-// Home page API functions
+// Get the best available URL for a song (local if downloaded, otherwise CDN)
+export function getBestAvailableUrl(song: SaavnSong): string | undefined {
+  // First check if song is downloaded locally
+  const localUri = DownloadService.getLocalUri(song.id);
+  if (localUri) {
+    console.log(`Using local file for song ${song.name}: ${localUri}`);
+    return localUri;
+  }
+
+  // Fallback to CDN URL only if online
+  if (NetworkService.isOnline()) {
+    console.log(`Using CDN for song ${song.name}: ${song.downloadUrl}`);
+    return song.downloadUrl;
+  }
+
+  // Offline and no local file available
+  console.log(`Offline: No local file available for song ${song.name}`);
+  return undefined;
+}
+
+// Check if device is offline
+export function isOffline(): boolean {
+  return NetworkService.isOffline();
+}
+
+// Check if device is online
+export function isOnline(): boolean {
+  return NetworkService.isOnline();
+}
+
+// Get recently played songs (offline-compatible)
+export function getRecentlyPlayedOffline(): SaavnSong[] {
+  if (!memory.recentlyPlayed) return [];
+
+  // Filter to only show downloaded songs when offline
+  if (NetworkService.isOffline()) {
+    return memory.recentlyPlayed.filter((song) =>
+      DownloadService.isDownloaded(song.id)
+    );
+  }
+
+  // Show all when online
+  return memory.recentlyPlayed;
+}
+
+// Get downloaded songs by album name
+export function getDownloadedSongsByAlbum(albumName: string): SaavnSong[] {
+  const downloadedSongs = getDownloadedSongs();
+  return downloadedSongs.filter(
+    (song) =>
+      song.album && song.album.toLowerCase().includes(albumName.toLowerCase())
+  );
+}
+
+// Get downloaded songs by album ID (if available)
+export function getDownloadedSongsByAlbumId(albumId: string): SaavnSong[] {
+  const downloadedSongs = getDownloadedSongs();
+  return downloadedSongs.filter((song) => song.id === albumId);
+}
+
+// Create offline album details from downloaded songs
+export function createOfflineAlbumFromSongs(
+  songs: SaavnSong[],
+  albumName?: string
+): {
+  album: SaavnAlbum;
+  songs: SaavnSong[];
+} | null {
+  if (songs.length === 0) return null;
+
+  const firstSong = songs[0];
+  const album: SaavnAlbum = {
+    id: firstSong.id, // Use first song ID as album ID
+    name: albumName || firstSong.album || "Unknown Album",
+    image: firstSong.image,
+    primaryArtists: firstSong.primaryArtists,
+    year: firstSong.year,
+    songCount: songs.length,
+    language: "Unknown",
+    type: "album" as const,
+  };
+
+  return { album, songs };
+}
+
+// Offline-compatible album details function
+export async function getAlbumDetailsOffline(albumId: string): Promise<{
+  album: SaavnAlbum;
+  songs: SaavnSong[];
+} | null> {
+  // If online, try regular API first
+  if (NetworkService.isOnline()) {
+    try {
+      return await getAlbumDetails(albumId);
+    } catch (error) {
+      console.log("Online album fetch failed, trying offline:", error);
+    }
+  }
+
+  // Offline mode or online failed - try to find downloaded songs
+  console.log("Attempting offline album details for:", albumId);
+
+  // Try to find songs by album ID first
+  let downloadedSongs = getDownloadedSongsByAlbumId(albumId);
+
+  // If no songs found by ID, try to match by album name from recently played
+  if (downloadedSongs.length === 0) {
+    const recentSongs = getRecentlyPlayedOffline();
+    const albumSong = recentSongs.find(
+      (song) => song.id === albumId || song.album?.includes(albumId)
+    );
+
+    if (albumSong && albumSong.album) {
+      downloadedSongs = getDownloadedSongsByAlbum(albumSong.album);
+    }
+  }
+
+  // Create offline album from found songs
+  return createOfflineAlbumFromSongs(downloadedSongs);
+}
+
+// Get downloaded albums from recently played songs
+export function getDownloadedAlbumsFromRecent(): SaavnAlbum[] {
+  const downloadedSongs = getDownloadedSongs();
+  const albumsMap = new Map<string, SaavnAlbum>();
+
+  downloadedSongs.forEach((song) => {
+    if (song.album && song.id) {
+      const albumId = song.id; // Using song ID as album identifier for simplicity
+      if (!albumsMap.has(albumId)) {
+        albumsMap.set(albumId, {
+          id: albumId,
+          name: song.album,
+          image: song.image,
+          primaryArtists: song.primaryArtists,
+          year: song.year,
+          songCount: 1,
+          type: "album" as const,
+        });
+      } else {
+        const existing = albumsMap.get(albumId)!;
+        existing.songCount = (existing.songCount || 0) + 1;
+      }
+    }
+  });
+
+  return Array.from(albumsMap.values());
+}
+
+// Offline-compatible home page functions
+export async function getTopChartsOffline(): Promise<{
+  songs: SaavnSong[];
+  albums: SaavnAlbum[];
+}> {
+  // If offline, return only recently played downloaded content
+  if (NetworkService.isOffline()) {
+    const recentSongs = getRecentlyPlayedOffline();
+    const recentAlbums = getDownloadedAlbumsFromRecent();
+
+    return {
+      songs: recentSongs.slice(0, 20),
+      albums: recentAlbums.slice(0, 20),
+    };
+  }
+
+  // If online, use regular API
+  return await getTopCharts();
+}
+
+export async function getTrendingOffline(): Promise<{
+  songs: SaavnSong[];
+  albums: SaavnAlbum[];
+}> {
+  // If offline, return only recently played downloaded content
+  if (NetworkService.isOffline()) {
+    const recentSongs = getRecentlyPlayedOffline();
+    const recentAlbums = getDownloadedAlbumsFromRecent();
+
+    return {
+      songs: recentSongs.slice(0, 20),
+      albums: recentAlbums.slice(0, 20),
+    };
+  }
+
+  // If online, use regular API
+  return await getTrending();
+} // Home page API functions
 export async function getTopCharts(): Promise<{
   songs: SaavnSong[];
   albums: SaavnAlbum[];
@@ -910,6 +1095,37 @@ export function getRecentlyPlayedAlbums(): SaavnAlbum[] {
   return Array.from(albumsMap.values()).slice(0, 20);
 }
 
+// Get downloaded songs (Exima only)
+export function getDownloadedSongs() {
+  return DownloadService.getDownloadedSongs().map((metadata) => ({
+    id: metadata.id,
+    name: metadata.name,
+    primaryArtists: metadata.artist,
+    album: metadata.album,
+    year: metadata.year,
+    image: metadata.image,
+    duration: metadata.duration,
+    downloadUrl: metadata.localUri,
+  }));
+}
+
+// Download management functions
+export async function downloadSong(song: SaavnSong) {
+  return await DownloadService.downloadSong(song);
+}
+
+export async function deleteSong(songId: string) {
+  return await DownloadService.deleteSong(songId);
+}
+
+export function getDownloadProgress(songId: string) {
+  return DownloadService.getDownloadProgress(songId);
+}
+
+export function isDownloading(songId: string) {
+  return DownloadService.isDownloading(songId);
+}
+
 export const SaavnService = {
   searchSongs,
   searchAlbums,
@@ -924,10 +1140,27 @@ export const SaavnService = {
   incrementPlayAndMaybeCache,
   getPlayCount,
   isDownloaded,
+  getBestAvailableUrl,
+  getDownloadedSongs,
+  downloadSong,
+  deleteSong,
+  getDownloadProgress,
+  isDownloading,
   getTopCharts,
   getTrending,
   getRecommendations,
   getLatestReleases,
   getRecentlyPlayedSongs,
   getRecentlyPlayedAlbums,
+  // Offline-compatible functions
+  isOffline,
+  isOnline,
+  getRecentlyPlayedOffline,
+  getDownloadedAlbumsFromRecent,
+  getTopChartsOffline,
+  getTrendingOffline,
+  getAlbumDetailsOffline,
+  getDownloadedSongsByAlbum,
+  getDownloadedSongsByAlbumId,
+  createOfflineAlbumFromSongs,
 };

@@ -1,5 +1,6 @@
 import {
   SaavnSong,
+  getBestAvailableUrl,
   incrementPlayAndMaybeCache,
 } from "@/services/SongApiService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -99,11 +100,12 @@ export const usePlayerStore = create<PlayerState>()(
 
       addToQueue: async (song: SaavnSong) => {
         try {
-          if (!song.downloadUrl) return;
+          const bestUrl = getBestAvailableUrl(song);
+          if (!bestUrl) return;
 
           const track: Track = {
             id: song.id,
-            url: song.downloadUrl,
+            url: bestUrl,
             title: song.name,
             artist: song.primaryArtists,
             artwork: song.image,
@@ -121,11 +123,12 @@ export const usePlayerStore = create<PlayerState>()(
 
       playNow: async (song: SaavnSong) => {
         try {
-          if (!song.downloadUrl) return;
+          const bestUrl = getBestAvailableUrl(song);
+          if (!bestUrl) return;
 
           const track: Track = {
             id: song.id,
-            url: song.downloadUrl,
+            url: bestUrl,
             title: song.name,
             artist: song.primaryArtists,
             artwork: song.image,
@@ -172,17 +175,22 @@ export const usePlayerStore = create<PlayerState>()(
           // Shuffle the songs array
           const shuffledSongs = [...songs].sort(() => Math.random() - 0.5);
 
-          const tracks: Track[] = shuffledSongs
-            .filter((song) => song.downloadUrl)
-            .map((song) => ({
-              id: song.id,
-              url: song.downloadUrl!,
-              title: song.name,
-              artist: song.primaryArtists,
-              artwork: song.image,
-              album: song.album,
-              duration: song.duration,
-            }));
+          const tracks: Track[] = [];
+
+          for (const song of shuffledSongs) {
+            const bestUrl = getBestAvailableUrl(song);
+            if (bestUrl) {
+              tracks.push({
+                id: song.id,
+                url: bestUrl,
+                title: song.name,
+                artist: song.primaryArtists,
+                artwork: song.image,
+                album: song.album,
+                duration: song.duration,
+              });
+            }
+          }
 
           if (tracks.length === 0) return;
 
@@ -208,17 +216,22 @@ export const usePlayerStore = create<PlayerState>()(
         try {
           if (songs.length === 0) return;
 
-          const tracks: Track[] = songs
-            .filter((song) => song.downloadUrl)
-            .map((song) => ({
-              id: song.id,
-              url: song.downloadUrl!,
-              title: song.name,
-              artist: song.primaryArtists,
-              artwork: song.image,
-              album: song.album,
-              duration: song.duration,
-            }));
+          const tracks: Track[] = [];
+
+          for (const song of songs) {
+            const bestUrl = getBestAvailableUrl(song);
+            if (bestUrl) {
+              tracks.push({
+                id: song.id,
+                url: bestUrl,
+                title: song.name,
+                artist: song.primaryArtists,
+                artwork: song.image,
+                album: song.album,
+                duration: song.duration,
+              });
+            }
+          }
 
           if (tracks.length === 0) return;
 
