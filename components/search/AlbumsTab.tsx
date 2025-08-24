@@ -1,6 +1,7 @@
 import { SaavnAlbum } from "@/services/SongApiService";
 import { useSearchStore } from "@/store/searchStore";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -15,7 +16,7 @@ export default function AlbumsTab() {
     useSearchStore();
 
   const handleAlbumPress = (album: SaavnAlbum) => {
-    // TODO: Navigate to album details page
+    router.push(`/album/${album.id}`);
   };
 
   const handleLoadMore = () => {

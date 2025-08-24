@@ -2,6 +2,7 @@ import { HorizontalAlbumList } from "@/components/home/HorizontalAlbumList";
 import { HorizontalSongList } from "@/components/home/HorizontalSongList";
 import { SaavnAlbum } from "@/services/SongApiService";
 import { useHomeStore } from "@/store/homeStore";
+import { router } from "expo-router";
 import React, { useEffect } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 
@@ -47,8 +48,7 @@ export default function HomeScreen() {
   };
 
   const handleAlbumPress = (album: SaavnAlbum) => {
-    // TODO: Navigate to album details
-    console.log("Album pressed:", album.name);
+    router.push(`/album/${album.id}`);
   };
 
   return (

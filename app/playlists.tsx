@@ -43,7 +43,10 @@ export default function PlaylistsScreen() {
   };
 
   const renderPlaylist = ({ item }: { item: Playlist }) => (
-    <TouchableOpacity className="bg-neutral-900 rounded-xl p-4 mb-3 active:bg-neutral-800">
+    <TouchableOpacity
+      onPress={() => router.push(`/playlist/local/${item.id}`)}
+      className="bg-neutral-900 rounded-xl p-4 mb-3 active:bg-neutral-800"
+    >
       <View className="flex-row items-center">
         {/* Playlist Cover */}
         <View className="w-16 h-16 rounded-lg bg-neutral-800 justify-center items-center mr-4">

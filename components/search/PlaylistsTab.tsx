@@ -1,6 +1,7 @@
 import { SaavnPlaylist } from "@/services/SongApiService";
 import { useSearchStore } from "@/store/searchStore";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -15,7 +16,7 @@ export default function PlaylistsTab() {
     useSearchStore();
 
   const handlePlaylistPress = (playlist: SaavnPlaylist) => {
-    // TODO: Navigate to playlist details page
+    router.push(`/playlist/${playlist.id}`);
   };
 
   const handleLoadMore = () => {
